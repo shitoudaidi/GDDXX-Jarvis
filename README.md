@@ -1,6 +1,6 @@
-# Jarvis Local Agent
+# GDDXX-Jarvis
 
-An open-source Windows desktop Agent with a Jarvis-style control room, DeepSeek conversation, wake-word voice interaction, local Jarvis TTS, AI HOT news, and an optional Grok Build engineering workspace.
+Every man's Jarvis: an open-source Windows desktop Agent that can listen, converse, read the latest AI news, and help you get real work done. GDDXX-Jarvis combines a sci-fi control room, DeepSeek conversation, wake-word voice interaction, local Jarvis TTS, AI HOT news, and an optional Grok Build engineering workspace.
 
 ## Quick Start (Windows)
 

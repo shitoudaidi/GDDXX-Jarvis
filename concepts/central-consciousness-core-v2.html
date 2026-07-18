@@ -1,0 +1,917 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>JARVIS - Particle Consciousness Core V2</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --void: #010408;
+      --void-2: #041018;
+      --cyan: #48f7ff;
+      --cyan-soft: rgba(72, 247, 255, 0.72);
+      --teal: #00b8aa;
+      --blue: #0b62f0;
+      --amber: #ffc45e;
+      --ink: #ecfbff;
+      --muted: #78a8b6;
+      --hairline: rgba(72, 247, 255, 0.24);
+      --panel: rgba(2, 12, 18, 0.58);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: var(--void);
+      color: var(--ink);
+      font-family: "Rajdhani", "Bahnschrift", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+    }
+
+    body {
+      min-height: 100dvh;
+      position: relative;
+      background:
+        radial-gradient(ellipse at 50% 45%, rgba(2, 99, 130, 0.26), transparent 33%),
+        radial-gradient(ellipse at 50% 68%, rgba(0, 184, 170, 0.14), transparent 48%),
+        linear-gradient(180deg, #000204 0%, #031019 52%, #000204 100%);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.22;
+      background-image:
+        linear-gradient(rgba(72, 247, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(72, 247, 255, 0.045) 1px, transparent 1px);
+      background-size: 82px 82px;
+      mask-image: radial-gradient(circle at 50% 50%, black 0 44%, transparent 77%);
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 8;
+      pointer-events: none;
+      opacity: 0.14;
+      background-image: linear-gradient(0deg, transparent 0 7px, rgba(72, 247, 255, 0.22) 8px);
+      background-size: 100% 9px;
+      mix-blend-mode: screen;
+    }
+
+    .scene {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .hex-field {
+      position: absolute;
+      left: 12vw;
+      right: 12vw;
+      bottom: -3vh;
+      height: 48vh;
+      opacity: 0.18;
+      transform: perspective(900px) rotateX(62deg);
+      transform-origin: bottom center;
+      background-image:
+        linear-gradient(30deg, rgba(72, 247, 255, 0.18) 12%, transparent 12.5%, transparent 87%, rgba(72, 247, 255, 0.18) 87.5%, rgba(72, 247, 255, 0.18)),
+        linear-gradient(150deg, rgba(72, 247, 255, 0.18) 12%, transparent 12.5%, transparent 87%, rgba(72, 247, 255, 0.18) 87.5%, rgba(72, 247, 255, 0.18)),
+        linear-gradient(30deg, rgba(72, 247, 255, 0.18) 12%, transparent 12.5%, transparent 87%, rgba(72, 247, 255, 0.18) 87.5%, rgba(72, 247, 255, 0.18)),
+        linear-gradient(150deg, rgba(72, 247, 255, 0.18) 12%, transparent 12.5%, transparent 87%, rgba(72, 247, 255, 0.18) 87.5%, rgba(72, 247, 255, 0.18));
+      background-position: 0 0, 0 0, 42px 74px, 42px 74px;
+      background-size: 84px 148px;
+      filter: blur(0.3px);
+      mask-image: linear-gradient(to top, black, transparent 78%);
+    }
+
+    .floor-light {
+      position: absolute;
+      left: 17vw;
+      right: 17vw;
+      bottom: -19vh;
+      height: 46vh;
+      opacity: 0.82;
+      filter: blur(28px);
+      background:
+        radial-gradient(ellipse at 50% 78%, rgba(72, 247, 255, 0.38), transparent 58%),
+        radial-gradient(ellipse at 35% 92%, rgba(0, 184, 170, 0.24), transparent 46%),
+        radial-gradient(ellipse at 66% 92%, rgba(11, 98, 240, 0.2), transparent 48%);
+    }
+
+    .depth-fog {
+      position: absolute;
+      left: 20vw;
+      right: 20vw;
+      bottom: 4vh;
+      height: 34vh;
+      opacity: 0.34;
+      filter: blur(20px);
+      background:
+        linear-gradient(to top, rgba(72, 247, 255, 0.22), transparent 82%),
+        radial-gradient(ellipse at 48% 78%, rgba(0, 184, 170, 0.24), transparent 52%);
+    }
+
+    .interface {
+      position: relative;
+      z-index: 2;
+      width: 100vw;
+      height: 100dvh;
+      display: grid;
+      grid-template-rows: 72px minmax(0, 1fr) 116px;
+      gap: 14px;
+      padding: 22px 30px 24px;
+    }
+
+    .top-rail {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      border-top: 1px solid rgba(72, 247, 255, 0.28);
+      border-bottom: 1px solid rgba(72, 247, 255, 0.15);
+      background:
+        linear-gradient(90deg, transparent 0%, rgba(72, 247, 255, 0.06) 40%, rgba(255, 196, 94, 0.05) 50%, rgba(72, 247, 255, 0.06) 60%, transparent 100%);
+    }
+
+    .brand {
+      min-width: 0;
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+    }
+
+    .brand strong {
+      font-family: "Orbitron", "Michroma", "Bahnschrift", "Microsoft YaHei UI", sans-serif;
+      font-size: clamp(24px, 2.2vw, 38px);
+      line-height: 1;
+      font-weight: 800;
+      transform: skewX(-8deg);
+      text-shadow: 0 0 24px rgba(72, 247, 255, 0.38);
+    }
+
+    .brand span,
+    .rail-center,
+    .clock,
+    .unit-label,
+    .panel h2,
+    .metric span,
+    .console-meta {
+      font-family: "JetBrains Mono", "IBM Plex Mono", Consolas, "Microsoft YaHei UI", monospace;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .brand span {
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .rail-center {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      color: var(--ink);
+    }
+
+    .rail-center span {
+      position: relative;
+      padding-left: 13px;
+      color: rgba(236, 251, 255, 0.76);
+    }
+
+    .rail-center span::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 50%;
+      width: 5px;
+      height: 5px;
+      background: var(--cyan);
+      box-shadow: 0 0 16px rgba(72, 247, 255, 0.9);
+      transform: translateY(-50%);
+    }
+
+    .clock {
+      justify-self: end;
+      text-align: right;
+      color: var(--muted);
+    }
+
+    .stage {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(220px, 17vw) minmax(520px, 1fr) minmax(250px, 20vw);
+      gap: 22px;
+      align-items: center;
+    }
+
+    .panel {
+      min-height: min(62vh, 560px);
+      max-height: 670px;
+      padding: 16px;
+      border: 1px solid rgba(72, 247, 255, 0.17);
+      background:
+        linear-gradient(180deg, rgba(72, 247, 255, 0.075), rgba(2, 12, 18, 0.15) 28%, rgba(2, 12, 18, 0.54)),
+        var(--panel);
+      clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px));
+      box-shadow: inset 0 0 42px rgba(72, 247, 255, 0.045);
+      opacity: 0.84;
+    }
+
+    .panel h2 {
+      margin: 0 0 22px;
+      color: var(--cyan);
+      font-weight: 500;
+    }
+
+    .metric-list {
+      display: grid;
+      gap: 17px;
+    }
+
+    .metric {
+      display: grid;
+      gap: 5px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid rgba(72, 247, 255, 0.11);
+    }
+
+    .metric span {
+      color: var(--muted);
+    }
+
+    .metric strong {
+      font-size: clamp(20px, 1.8vw, 28px);
+      line-height: 1.08;
+      font-weight: 650;
+      color: var(--ink);
+    }
+
+    .metric small {
+      max-width: 32ch;
+      color: rgba(236, 251, 255, 0.68);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .core-stage {
+      position: relative;
+      min-height: 0;
+      height: 100%;
+      display: grid;
+      place-items: center;
+    }
+
+    #jarvis-core {
+      position: absolute;
+      inset: -1%;
+      width: 102%;
+      height: 102%;
+      z-index: 2;
+    }
+
+    .ring-hardware {
+      position: absolute;
+      z-index: 1;
+      width: min(72vw, 900px, 82vh);
+      aspect-ratio: 1;
+      border-radius: 50%;
+      border: 1px solid rgba(72, 247, 255, 0.16);
+      box-shadow:
+        inset 0 0 58px rgba(72, 247, 255, 0.11),
+        inset 0 0 120px rgba(11, 98, 240, 0.08),
+        0 0 90px rgba(0, 184, 170, 0.11);
+      animation: core-breathe 7.8s cubic-bezier(0.32, 0.72, 0, 1) infinite;
+    }
+
+    .ring-hardware::before,
+    .ring-hardware::after {
+      content: "";
+      position: absolute;
+      inset: 5.8%;
+      border-radius: 50%;
+      border: 1px solid rgba(72, 247, 255, 0.12);
+    }
+
+    .ring-hardware::before {
+      background:
+        conic-gradient(from 18deg, transparent 0deg, rgba(72, 247, 255, 0.14) 31deg, transparent 58deg, transparent 141deg, rgba(255, 196, 94, 0.12) 160deg, transparent 185deg, transparent 270deg, rgba(72, 247, 255, 0.12) 296deg, transparent 330deg),
+        radial-gradient(circle at 50% 50%, rgba(72, 247, 255, 0.08), transparent 58%);
+      animation: hardware-spin 28s cubic-bezier(0.32, 0.72, 0, 1) infinite;
+    }
+
+    .ring-hardware::after {
+      inset: 14.8%;
+      border-color: rgba(72, 247, 255, 0.2);
+      box-shadow: inset 0 0 40px rgba(0, 184, 170, 0.1);
+      animation: hardware-spin 42s cubic-bezier(0.32, 0.72, 0, 1) infinite reverse;
+    }
+
+    .core-caption {
+      position: absolute;
+      z-index: 3;
+      bottom: 5%;
+      left: 50%;
+      display: grid;
+      gap: 7px;
+      min-width: 280px;
+      text-align: center;
+      pointer-events: none;
+      transform: translateX(-50%);
+    }
+
+    .unit-label {
+      color: rgba(236, 251, 255, 0.82);
+    }
+
+    .core-caption strong {
+      font-family: "Orbitron", "Michroma", "Bahnschrift", "Microsoft YaHei UI", sans-serif;
+      font-size: 15px;
+      font-weight: 750;
+      color: var(--ink);
+      text-shadow: 0 0 18px rgba(72, 247, 255, 0.45);
+    }
+
+    .voice-console {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr minmax(320px, 42vw) 1fr;
+      gap: 18px;
+      align-items: center;
+      border-top: 1px solid rgba(72, 247, 255, 0.3);
+      background:
+        radial-gradient(ellipse at 50% 0%, rgba(72, 247, 255, 0.17), transparent 61%),
+        linear-gradient(90deg, transparent, rgba(2, 12, 18, 0.66), transparent);
+    }
+
+    .voice-console::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: -78px;
+      width: min(920px, 74vw);
+      height: 132px;
+      border-top: 1px solid rgba(72, 247, 255, 0.26);
+      border-radius: 50% 50% 0 0;
+      opacity: 0.78;
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+
+    .console-meta {
+      position: relative;
+      z-index: 2;
+      color: var(--muted);
+    }
+
+    .console-meta:last-child {
+      text-align: right;
+    }
+
+    .transcript {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      gap: 9px;
+      justify-items: center;
+      text-align: center;
+    }
+
+    .wave {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      height: 36px;
+    }
+
+    .wave i {
+      display: block;
+      width: 3px;
+      height: 11px;
+      background: var(--cyan);
+      box-shadow: 0 0 15px rgba(72, 247, 255, 0.82);
+      animation: voice-wave 1.28s cubic-bezier(0.32, 0.72, 0, 1) infinite;
+      animation-delay: calc(var(--i) * -68ms);
+    }
+
+    .transcript strong {
+      font-size: clamp(24px, 2.5vw, 38px);
+      line-height: 1.05;
+      font-weight: 650;
+    }
+
+    .transcript span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    @keyframes core-breathe {
+      0%,
+      100% {
+        opacity: 0.72;
+        transform: scale(0.988);
+      }
+      52% {
+        opacity: 1;
+        transform: scale(1.018);
+      }
+    }
+
+    @keyframes hardware-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes voice-wave {
+      0%,
+      100% {
+        height: 9px;
+        opacity: 0.34;
+      }
+      48% {
+        height: 35px;
+        opacity: 1;
+      }
+    }
+
+    @media (max-width: 980px) {
+      .interface {
+        grid-template-rows: auto minmax(0, 1fr) 128px;
+        padding: 18px;
+      }
+
+      .top-rail,
+      .stage,
+      .voice-console {
+        grid-template-columns: 1fr;
+      }
+
+      .rail-center,
+      .clock,
+      .panel,
+      .console-meta {
+        display: none;
+      }
+
+      .brand {
+        justify-content: space-between;
+      }
+
+      .brand span {
+        white-space: normal;
+        text-align: right;
+      }
+
+      .core-stage {
+        min-height: 58vh;
+      }
+
+      .ring-hardware {
+        width: min(93vw, 68vh);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="scene" aria-hidden="true">
+    <div class="hex-field"></div>
+    <div class="floor-light"></div>
+    <div class="depth-fog"></div>
+  </div>
+
+  <main class="interface">
+    <header class="top-rail" aria-label="Jarvis status">
+      <div class="brand">
+        <strong>JARVIS</strong>
+        <span>PARTICLE CONSCIOUSNESS CORE</span>
+      </div>
+      <div class="rail-center">
+        <span>LOCAL ONLINE</span>
+        <span>DEEPSEEK READY</span>
+        <span>VOICE IDLE</span>
+      </div>
+      <div class="clock">2026.06.20 / 10:28<br />ASIA SHANGHAI</div>
+    </header>
+
+    <section class="stage" aria-label="Jarvis central interface">
+      <aside class="panel">
+        <h2>ENVIRONMENT</h2>
+        <div class="metric-list">
+          <div class="metric">
+            <span>WEATHER</span>
+            <strong>28 C / 多云</strong>
+            <small>风速 12 km/h，空气质量良好，适合开启早间简报。</small>
+          </div>
+          <div class="metric">
+            <span>WAKE PHRASE</span>
+            <strong>你好，贾维斯</strong>
+            <small>监听状态保持低功耗待命，听到唤醒词后进入对话。</small>
+          </div>
+          <div class="metric">
+            <span>VOICEPRINT</span>
+            <strong>沉稳男声</strong>
+            <small>DeepSeek 的回答将交给 TTS，以低沉、克制的科技声线读出。</small>
+          </div>
+        </div>
+      </aside>
+
+      <section class="core-stage" aria-label="Jarvis particle core">
+        <div class="ring-hardware" aria-hidden="true"></div>
+        <canvas id="jarvis-core" aria-hidden="true"></canvas>
+        <div class="core-caption">
+          <span class="unit-label">CENTRAL UNIT / PARTICLE MODE V2</span>
+          <strong>随时待命，等待您的指令。</strong>
+        </div>
+      </section>
+
+      <aside class="panel">
+        <h2>INTELLIGENCE</h2>
+        <div class="metric-list">
+          <div class="metric">
+            <span>AI HOT</span>
+            <strong>全网 AI 热点</strong>
+            <small>接入 AI Hot 后，自动抓取模型、产品、融资、开源项目动态。</small>
+          </div>
+          <div class="metric">
+            <span>DAILY BRIEF</span>
+            <strong>今日摘要</strong>
+            <small>天气、日程、热点、待办将汇聚到右侧情报面板。</small>
+          </div>
+          <div class="metric">
+            <span>RESPONSE</span>
+            <strong>DeepSeek API</strong>
+            <small>后端保留模型端口，后续填入 API key 即可接入真实对话。</small>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <footer class="voice-console" aria-label="Voice console">
+      <div class="console-meta">WAKE / 你好，贾维斯</div>
+      <div class="transcript">
+        <div class="wave" aria-hidden="true">
+          <i style="--i: 0"></i><i style="--i: 1"></i><i style="--i: 2"></i><i style="--i: 3"></i>
+          <i style="--i: 4"></i><i style="--i: 5"></i><i style="--i: 6"></i><i style="--i: 7"></i>
+          <i style="--i: 8"></i><i style="--i: 9"></i><i style="--i: 10"></i><i style="--i: 11"></i>
+        </div>
+        <strong>我在。</strong>
+        <span>等待语音输入</span>
+      </div>
+      <div class="console-meta">STATE / IDLE BREATHING</div>
+    </footer>
+  </main>
+
+  <script>
+    const canvas = document.getElementById("jarvis-core");
+    const ctx = canvas.getContext("2d", { alpha: true });
+    const TAU = Math.PI * 2;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    let width = 0;
+    let height = 0;
+    let dpr = 1;
+    let centerX = 0;
+    let centerY = 0;
+    let coreRadius = 260;
+    let outerRing = [];
+    let discDust = [];
+    let textParticles = [];
+    let sphereParticles = [];
+    let mistParticles = [];
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function rand(min, max) {
+      return min + Math.random() * (max - min);
+    }
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      width = rect.width;
+      height = rect.height;
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      centerX = width / 2;
+      centerY = height / 2 - height * 0.03;
+      coreRadius = Math.min(width, height) * 0.39;
+      buildParticles();
+    }
+
+    function buildParticles() {
+      const ringCount = Math.floor(clamp(coreRadius * 14, 3900, 7200));
+      const dustCount = Math.floor(clamp(coreRadius * 8, 2200, 4400));
+      const sphereCount = Math.floor(clamp(coreRadius * 5.4, 1500, 2900));
+      const mistCount = 80;
+
+      outerRing = Array.from({ length: ringCount }, (_, index) => {
+        const band = Math.random();
+        const radius = coreRadius * rand(0.9, 1.04) + (band > 0.72 ? rand(-18, 18) : rand(-6, 6));
+        return {
+          index,
+          angle: rand(0, TAU),
+          radius,
+          speed: rand(0.000035, 0.00016) * (Math.random() > 0.5 ? 1 : -1),
+          size: rand(0.65, band > 0.84 ? 1.75 : 1.15),
+          alpha: rand(0.18, band > 0.76 ? 0.84 : 0.48),
+          phase: rand(0, TAU),
+          stretchX: rand(1.0, 1.08),
+          stretchY: rand(0.94, 1.03),
+          amp: rand(1.5, 13)
+        };
+      });
+
+      discDust = Array.from({ length: dustCount }, () => {
+        const radius = Math.sqrt(Math.random()) * coreRadius * rand(0.28, 0.86);
+        return {
+          angle: rand(0, TAU),
+          radius,
+          speed: rand(0.00002, 0.00008),
+          size: rand(0.45, 1.25),
+          alpha: rand(0.08, 0.4),
+          phase: rand(0, TAU),
+          ySquash: rand(0.82, 1.0)
+        };
+      });
+
+      sphereParticles = Array.from({ length: sphereCount }, (_, index) => {
+        const v = index / sphereCount;
+        const theta = index * 2.399963 + rand(-0.03, 0.03);
+        const z = 1 - 2 * v;
+        const radial = Math.sqrt(Math.max(0, 1 - z * z));
+        return {
+          theta,
+          phiX: Math.cos(theta) * radial,
+          phiY: Math.sin(theta) * radial,
+          phiZ: z,
+          size: rand(0.45, 1.15),
+          alpha: rand(0.1, 0.54),
+          phase: rand(0, TAU)
+        };
+      });
+
+      mistParticles = Array.from({ length: mistCount }, () => ({
+        x: rand(width * 0.1, width * 0.9),
+        y: rand(height * 0.58, height * 0.98),
+        radius: rand(60, 180),
+        alpha: rand(0.02, 0.1),
+        speed: rand(0.00004, 0.00013),
+        phase: rand(0, TAU)
+      }));
+
+      textParticles = buildTextParticles();
+    }
+
+    function buildTextParticles() {
+      const offscreen = document.createElement("canvas");
+      const octx = offscreen.getContext("2d");
+      const ow = 1024;
+      const oh = 260;
+      offscreen.width = ow;
+      offscreen.height = oh;
+      octx.clearRect(0, 0, ow, oh);
+      octx.fillStyle = "#fff";
+      octx.textAlign = "center";
+      octx.textBaseline = "middle";
+      octx.save();
+      octx.translate(ow / 2, oh / 2);
+      octx.transform(1, -0.06, -0.18, 1, 0, 0);
+      octx.font = "900 152px Bahnschrift, Impact, sans-serif";
+      octx.fillText("JARVIS", 0, 10);
+      octx.restore();
+
+      const pixels = octx.getImageData(0, 0, ow, oh).data;
+      const scale = (coreRadius * 1.84) / ow;
+      const targets = [];
+      const step = coreRadius > 330 ? 3 : 4;
+
+      for (let y = 0; y < oh; y += step) {
+        for (let x = 0; x < ow; x += step) {
+          const alpha = pixels[(y * ow + x) * 4 + 3];
+          if (alpha > 70 && Math.random() < 0.46) {
+            targets.push({
+              tx: centerX + (x - ow / 2) * scale,
+              ty: centerY + (y - oh / 2) * scale * 0.96,
+              sourceAlpha: alpha / 255
+            });
+          }
+        }
+      }
+
+      const maxParticles = Math.floor(clamp(coreRadius * 13.5, 3600, 6800));
+      while (targets.length > maxParticles) {
+        targets.splice(Math.floor(Math.random() * targets.length), 1);
+      }
+
+      return targets.map((target) => ({
+        ...target,
+        size: rand(0.85, 1.95),
+        alpha: rand(0.46, 0.96) * target.sourceAlpha,
+        jitter: rand(0.6, 3.4),
+        phase: rand(0, TAU),
+        spark: Math.random() > 0.985
+      }));
+    }
+
+    function drawBackgroundMist(time) {
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.filter = "blur(10px)";
+      for (const p of mistParticles) {
+        const drift = Math.sin(time * p.speed + p.phase) * 34;
+        const gradient = ctx.createRadialGradient(p.x + drift, p.y, 0, p.x + drift, p.y, p.radius);
+        gradient.addColorStop(0, `rgba(72, 247, 255, ${p.alpha})`);
+        gradient.addColorStop(0.48, `rgba(0, 184, 170, ${p.alpha * 0.42})`);
+        gradient.addColorStop(1, "rgba(72, 247, 255, 0)");
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(p.x + drift, p.y, p.radius, 0, TAU);
+        ctx.fill();
+      }
+      ctx.filter = "none";
+      ctx.restore();
+    }
+
+    function drawMembrane(time) {
+      const pulse = Math.sin(time * 0.0011) * 0.018;
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+
+      const membrane = ctx.createRadialGradient(centerX, centerY, coreRadius * 0.08, centerX, centerY, coreRadius * (1.08 + pulse));
+      membrane.addColorStop(0, "rgba(72, 247, 255, 0.17)");
+      membrane.addColorStop(0.36, "rgba(0, 184, 170, 0.075)");
+      membrane.addColorStop(0.73, "rgba(11, 98, 240, 0.045)");
+      membrane.addColorStop(1, "rgba(72, 247, 255, 0)");
+      ctx.fillStyle = membrane;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, coreRadius * (1.06 + pulse), 0, TAU);
+      ctx.fill();
+
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 6; i++) {
+        const radius = coreRadius * (0.26 + i * 0.118) * (1 + Math.sin(time * 0.0008 + i) * 0.012);
+        ctx.strokeStyle = i === 5 ? "rgba(72, 247, 255, 0.28)" : "rgba(72, 247, 255, 0.12)";
+        ctx.beginPath();
+        ctx.ellipse(centerX, centerY, radius * 1.02, radius * 0.99, time * 0.00006 * (i + 1), 0, TAU);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    function drawSphere(time) {
+      const sphereRadius = coreRadius * 0.245;
+      const rotA = time * 0.00034;
+      const rotB = time * 0.00019;
+
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+
+      ctx.strokeStyle = "rgba(72, 247, 255, 0.16)";
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 7; i++) {
+        const rr = sphereRadius * (0.32 + i * 0.1);
+        ctx.beginPath();
+        ctx.ellipse(centerX, centerY, rr * 1.45, rr * 0.44, rotA + i * 0.24, 0, TAU);
+        ctx.stroke();
+      }
+
+      for (const p of sphereParticles) {
+        const x1 = p.phiX * Math.cos(rotA) - p.phiZ * Math.sin(rotA);
+        const z1 = p.phiX * Math.sin(rotA) + p.phiZ * Math.cos(rotA);
+        const y1 = p.phiY * Math.cos(rotB) - z1 * Math.sin(rotB);
+        const z2 = p.phiY * Math.sin(rotB) + z1 * Math.cos(rotB);
+        const depth = 1 / (1.52 - z2 * 0.33);
+        const x = centerX + x1 * sphereRadius * depth;
+        const y = centerY + y1 * sphereRadius * depth;
+        const alpha = p.alpha * (0.46 + z2 * 0.28 + Math.sin(time * 0.002 + p.phase) * 0.12);
+        ctx.globalAlpha = clamp(alpha, 0.03, 0.72);
+        ctx.fillStyle = "#48f7ff";
+        ctx.fillRect(x, y, p.size * depth * 1.45, p.size * depth * 1.45);
+      }
+
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+
+    function drawDiscDust(time) {
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.fillStyle = "#48f7ff";
+
+      for (const p of discDust) {
+        const angle = p.angle + time * p.speed;
+        const radius = p.radius + Math.sin(time * 0.0011 + p.phase) * 5;
+        const x = centerX + Math.cos(angle) * radius;
+        const y = centerY + Math.sin(angle) * radius * p.ySquash;
+        const alpha = p.alpha * (0.54 + Math.sin(time * 0.0018 + p.phase) * 0.32);
+        ctx.globalAlpha = clamp(alpha, 0.02, 0.52);
+        ctx.fillRect(x, y, p.size, p.size);
+      }
+
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+
+    function drawOuterRing(time) {
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.fillStyle = "#48f7ff";
+
+      for (const p of outerRing) {
+        const angle = p.angle + time * p.speed;
+        const wave = Math.sin(time * 0.0014 + p.phase) * p.amp;
+        const radius = p.radius + wave;
+        const x = centerX + Math.cos(angle) * radius * p.stretchX;
+        const y = centerY + Math.sin(angle) * radius * p.stretchY;
+        const alpha = p.alpha * (0.56 + Math.sin(time * 0.001 + p.phase) * 0.34);
+        ctx.globalAlpha = clamp(alpha, 0.03, 0.9);
+        ctx.fillRect(x, y, p.size, p.size);
+      }
+
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = "rgba(72, 247, 255, 0.28)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, coreRadius * 1.055, 0, TAU);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(0, 184, 170, 0.18)";
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, coreRadius * 0.91, 0, TAU);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawText(time) {
+      const breathe = 1 + Math.sin(time * 0.00074) * 0.011;
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+
+      for (const p of textParticles) {
+        const dx = (p.tx - centerX) * breathe;
+        const dy = (p.ty - centerY) * (1 + Math.sin(time * 0.00061) * 0.006);
+        const jitterX = Math.sin(time * 0.0022 + p.phase) * p.jitter;
+        const jitterY = Math.cos(time * 0.0017 + p.phase) * p.jitter * 0.52;
+        const x = centerX + dx + jitterX;
+        const y = centerY + dy + jitterY;
+        const shimmer = 0.72 + Math.sin(time * 0.003 + p.phase) * 0.28;
+        ctx.globalAlpha = clamp(p.alpha * shimmer, 0.14, 1);
+        ctx.fillStyle = p.spark ? "#ffc45e" : "#48f7ff";
+        ctx.fillRect(x, y, p.size, p.size);
+        if (p.spark && !reducedMotion) {
+          ctx.globalAlpha = 0.28;
+          ctx.fillRect(x - 5, y, 11, 1);
+        }
+      }
+
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+
+    function render(time = 0) {
+      const t = reducedMotion ? 1000 : time;
+      ctx.clearRect(0, 0, width, height);
+      drawBackgroundMist(t);
+      drawMembrane(t);
+      drawSphere(t);
+      drawDiscDust(t);
+      drawText(t);
+      drawOuterRing(t);
+      requestAnimationFrame(render);
+    }
+
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+    render();
+  </script>
+</body>
+</html>

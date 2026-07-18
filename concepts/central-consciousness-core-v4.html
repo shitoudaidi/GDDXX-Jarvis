@@ -1,0 +1,2213 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>JARVIS - Volumetric Particle Core V4</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --cyan: #54fbff;
+      --teal: #08d5c7;
+      --deep: #010407;
+      --ink: rgba(233, 253, 255, 0.92);
+      --muted: rgba(166, 223, 231, 0.58);
+      --amber: #ffd489;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      color: var(--ink);
+      font-family: "Bahnschrift", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+    }
+
+    body {
+      min-height: 100dvh;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    .cinema {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      isolation: isolate;
+      background: #000;
+    }
+
+    .room {
+      position: absolute;
+      inset: -4%;
+      z-index: 0;
+      background:
+        linear-gradient(90deg, rgba(0, 0, 0, 0.94), transparent 24%, transparent 76%, rgba(0, 0, 0, 0.94)),
+        linear-gradient(180deg, rgba(0, 0, 0, 0.58), transparent 32%, rgba(0, 2, 4, 0.78) 100%),
+        url("agnes-references/f57afd5c0e7d4da59931212e3c8c32e7.png") center / cover no-repeat;
+      filter: saturate(0.98) contrast(1.08) brightness(0.62);
+      transform: scale(1.035);
+    }
+
+    .room::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      opacity: 0.44;
+      background:
+        radial-gradient(ellipse at 50% 48%, rgba(6, 213, 199, 0.18), transparent 26%),
+        radial-gradient(ellipse at 50% 92%, rgba(84, 251, 255, 0.28), transparent 36%),
+        linear-gradient(90deg, rgba(0, 0, 0, 0.6), transparent 28%, transparent 72%, rgba(0, 0, 0, 0.6));
+      mix-blend-mode: screen;
+    }
+
+    .room::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      opacity: 0.2;
+      background:
+        linear-gradient(90deg, transparent 0 39%, rgba(84, 251, 255, 0.13) 39.2%, transparent 39.5% 63%, rgba(84, 251, 255, 0.08) 63.2%, transparent 63.5%),
+        linear-gradient(180deg, transparent 0 62%, rgba(84, 251, 255, 0.08), transparent 73%);
+      filter: blur(0.2px);
+    }
+
+    #depth,
+    #entity,
+    #gpu-core,
+    #projection {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    #depth {
+      z-index: 1;
+    }
+
+    #entity {
+      z-index: 2;
+    }
+
+    #gpu-core {
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    #projection {
+      z-index: 3;
+      pointer-events: none;
+    }
+
+    .grade,
+    .grain,
+    .scan {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .grade {
+      z-index: 4;
+      background:
+        radial-gradient(ellipse at 50% 48%, transparent 0 36%, rgba(0, 0, 0, 0.26) 65%, rgba(0, 0, 0, 0.88) 100%),
+        linear-gradient(180deg, rgba(0, 0, 0, 0.42), transparent 22%, transparent 70%, rgba(0, 0, 0, 0.82));
+    }
+
+    .grain {
+      z-index: 5;
+      opacity: 0.09;
+      background-image:
+        radial-gradient(circle at 13% 29%, rgba(255, 255, 255, 0.18) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 61% 71%, rgba(255, 255, 255, 0.12) 0 1px, transparent 1.8px);
+      background-size: 7px 7px, 13px 13px;
+      mix-blend-mode: screen;
+    }
+
+    .scan {
+      z-index: 6;
+      opacity: 0.055;
+      background-image: linear-gradient(0deg, rgba(84, 251, 255, 0.25) 1px, transparent 1px);
+      background-size: 100% 9px;
+      mix-blend-mode: screen;
+    }
+
+    .voice {
+      position: fixed;
+      left: 50%;
+      bottom: 30px;
+      z-index: 7;
+      display: grid;
+      gap: 10px;
+      justify-items: center;
+      width: min(520px, 72vw);
+      color: var(--ink);
+      text-align: center;
+      pointer-events: none;
+      transform: translateX(-50%);
+      text-shadow: 0 0 22px rgba(84, 251, 255, 0.42);
+    }
+
+    .voice strong {
+      font-size: clamp(22px, 2.2vw, 34px);
+      line-height: 1;
+      font-weight: 520;
+      letter-spacing: 0;
+    }
+
+    .voice span {
+      color: var(--muted);
+      font-family: Consolas, "Microsoft YaHei UI", monospace;
+      font-size: 12px;
+    }
+
+    .talk-form {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
+      width: min(560px, 78vw);
+      max-height: 0;
+      overflow: hidden;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(12px) scale(0.98);
+      transition:
+        opacity 220ms ease,
+        transform 220ms ease,
+        max-height 220ms ease;
+    }
+
+    .voice.dialog-open {
+      pointer-events: auto;
+    }
+
+    .voice.dialog-open .talk-form {
+      max-height: 52px;
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0) scale(1);
+    }
+
+    .talk-form input {
+      min-width: 0;
+      height: 36px;
+      border: 1px solid rgba(84, 251, 255, 0.22);
+      border-radius: 0;
+      background: rgba(1, 8, 12, 0.62);
+      color: rgba(233, 253, 255, 0.92);
+      outline: none;
+      padding: 0 12px;
+      font: 13px "Microsoft YaHei UI", system-ui, sans-serif;
+    }
+
+    .talk-form input:focus {
+      border-color: rgba(84, 251, 255, 0.72);
+      box-shadow: 0 0 0 1px rgba(84, 251, 255, 0.2);
+    }
+
+    .talk-form button {
+      height: 36px;
+      border: 1px solid rgba(84, 251, 255, 0.44);
+      border-radius: 0;
+      background: rgba(84, 251, 255, 0.14);
+      color: rgba(233, 253, 255, 0.92);
+      cursor: pointer;
+      font: 12px "Microsoft YaHei UI", system-ui, sans-serif;
+      padding: 0 14px;
+    }
+
+    .talk-form button:disabled {
+      cursor: wait;
+      opacity: 0.58;
+    }
+
+    .reply-line {
+      width: min(620px, 78vw);
+      min-height: 18px;
+      color: rgba(222, 251, 255, 0.78);
+      font-size: 12px;
+      line-height: 1.45;
+      text-wrap: pretty;
+    }
+
+    .breath-line {
+      width: min(380px, 90%);
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(84, 251, 255, 0.2), rgba(84, 251, 255, 0.92), rgba(255, 212, 137, 0.42), transparent);
+      box-shadow: 0 0 24px rgba(84, 251, 255, 0.6);
+      animation: breatheLine 4.8s cubic-bezier(0.33, 0, 0.16, 1) infinite;
+    }
+
+    .edge-readout {
+      position: fixed;
+      z-index: 7;
+      left: 30px;
+      right: 30px;
+      top: 26px;
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+      color: rgba(166, 223, 231, 0.5);
+      font-family: Consolas, "Microsoft YaHei UI", monospace;
+      font-size: 11px;
+      letter-spacing: 0.02em;
+    }
+
+    .edge-readout b {
+      color: rgba(233, 253, 255, 0.78);
+      font-weight: 400;
+    }
+
+    .mission-grid {
+      position: fixed;
+      inset: 76px 30px 98px;
+      z-index: 7;
+      display: grid;
+      grid-template-columns: minmax(260px, 340px) minmax(320px, 1fr) minmax(290px, 380px);
+      gap: 28px;
+      pointer-events: none;
+    }
+
+    .side-stack {
+      display: grid;
+      align-content: start;
+      gap: 14px;
+    }
+
+    .hud-panel {
+      position: relative;
+      overflow: hidden;
+      padding: 14px 15px 15px;
+      border: 1px solid rgba(84, 251, 255, 0.18);
+      background:
+        linear-gradient(180deg, rgba(2, 15, 19, 0.58), rgba(0, 4, 8, 0.22)),
+        radial-gradient(circle at 16% 0%, rgba(84, 251, 255, 0.16), transparent 48%);
+      color: rgba(229, 254, 255, 0.88);
+      box-shadow: inset 0 0 0 1px rgba(233, 253, 255, 0.035);
+      backdrop-filter: blur(6px);
+    }
+
+    .hud-panel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.28;
+      background-image:
+        linear-gradient(90deg, rgba(84, 251, 255, 0.08) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(84, 251, 255, 0.06) 1px, transparent 1px);
+      background-size: 36px 36px;
+      mask-image: linear-gradient(180deg, black, transparent 80%);
+    }
+
+    .panel-head {
+      position: relative;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+      font-family: Consolas, "Microsoft YaHei UI", monospace;
+    }
+
+    .panel-head strong {
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0;
+    }
+
+    .panel-head span {
+      color: rgba(166, 223, 231, 0.54);
+      font-size: 10px;
+    }
+
+    .weather-now {
+      position: relative;
+      display: grid;
+      gap: 12px;
+    }
+
+    .weather-main {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .weather-temp {
+      display: block;
+      color: rgba(235, 255, 255, 0.96);
+      font-family: Consolas, "Microsoft YaHei UI", monospace;
+      font-size: 42px;
+      font-weight: 500;
+      line-height: 0.96;
+      text-shadow: 0 0 24px rgba(84, 251, 255, 0.38);
+    }
+
+    .weather-condition {
+      display: block;
+      margin-top: 7px;
+      color: rgba(190, 239, 246, 0.78);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .weather-meta {
+      margin: 0;
+      max-width: 130px;
+      color: rgba(166, 223, 231, 0.58);
+      font-family: Consolas, "Microsoft YaHei UI", monospace;
+      font-size: 10px;
+      line-height: 1.45;
+      text-align: right;
+    }
+
+    .weather-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      border-top: 1px solid rgba(84, 251, 255, 0.12);
+      padding-top: 10px;
+    }
+
+    .weather-metrics span {
+      min-width: 0;
+      display: grid;
+      gap: 4px;
+    }
+
+    .weather-metrics small {
+      color: rgba(166, 223, 231, 0.52);
+      font-family: Consolas, "Microsoft YaHei UI", monospace;
+      font-size: 10px;
+    }
+
+    .weather-metrics b {
+      color: rgba(233, 253, 255, 0.9);
+      font-size: 12px;
+      font-weight: 430;
+    }
+
+    .task-row,
+    .conversation-row {
+      position: relative;
+      display: grid;
+      gap: 6px;
+      padding: 8px 0;
+      border-top: 1px solid rgba(84, 251, 255, 0.11);
+    }
+
+    .task-row span,
+    .conversation-row span {
+      color: rgba(166, 223, 231, 0.58);
+      font-family: Consolas, "Microsoft YaHei UI", monospace;
+      font-size: 10px;
+    }
+
+    .task-row b,
+    .conversation-row b {
+      color: rgba(233, 253, 255, 0.92);
+      font-size: 13px;
+      font-weight: 430;
+    }
+
+    .task-row {
+      grid-template-columns: 14px 1fr auto;
+      align-items: center;
+    }
+
+    .task-dot {
+      width: 7px;
+      height: 7px;
+      background: rgba(84, 251, 255, 0.84);
+      box-shadow: 0 0 14px rgba(84, 251, 255, 0.7);
+    }
+
+    .task-row[data-level="high"] .task-dot {
+      background: var(--amber);
+      box-shadow: 0 0 14px rgba(255, 212, 137, 0.75);
+    }
+
+    .center-space {
+      min-width: 0;
+    }
+
+    .conversation-row {
+      grid-template-columns: 1fr auto;
+      column-gap: 10px;
+      align-items: start;
+      opacity: 0.58;
+      transition: opacity 260ms ease, transform 260ms ease;
+    }
+
+    .conversation-row.is-active {
+      opacity: 1;
+      transform: translateX(-3px);
+    }
+
+    .conversation-row p {
+      grid-column: 1 / 3;
+      margin: 0;
+      color: rgba(222, 251, 255, 0.82);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .conversation-panel {
+      min-height: 320px;
+      display: grid;
+      grid-template-rows: auto minmax(190px, 1fr) auto;
+    }
+
+    .chat-log {
+      position: relative;
+      display: grid;
+      align-content: start;
+      gap: 10px;
+      min-height: 190px;
+      max-height: min(50vh, 430px);
+      overflow: hidden auto;
+      padding-right: 2px;
+    }
+
+    .chat-empty {
+      padding: 18px 0;
+      border-top: 1px solid rgba(84, 251, 255, 0.11);
+      color: rgba(166, 223, 231, 0.62);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .chat-message {
+      position: relative;
+      display: grid;
+      gap: 5px;
+      padding: 9px 0 10px;
+      border-top: 1px solid rgba(84, 251, 255, 0.1);
+    }
+
+    .chat-message b {
+      color: rgba(166, 223, 231, 0.62);
+      font-family: Consolas, "Microsoft YaHei UI", monospace;
+      font-size: 10px;
+      font-weight: 500;
+    }
+
+    .chat-message p {
+      margin: 0;
+      color: rgba(229, 254, 255, 0.88);
+      font-size: 12px;
+      line-height: 1.55;
+      text-wrap: pretty;
+    }
+
+    .chat-message[data-role="user"] p {
+      color: rgba(255, 242, 205, 0.9);
+    }
+
+    .chat-message[data-role="assistant"] {
+      border-top-color: rgba(84, 251, 255, 0.22);
+    }
+
+    .chat-message[data-role="assistant"] b {
+      color: rgba(84, 251, 255, 0.82);
+    }
+
+    .chat-message[data-role="system"] p {
+      color: rgba(166, 223, 231, 0.72);
+    }
+
+    .status-strip {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 7px;
+      margin-top: 13px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(84, 251, 255, 0.12);
+      font-family: Consolas, "Microsoft YaHei UI", monospace;
+    }
+
+    .status-strip span {
+      display: grid;
+      gap: 4px;
+      color: rgba(166, 223, 231, 0.46);
+      font-size: 10px;
+    }
+
+    .status-strip b {
+      color: rgba(233, 253, 255, 0.82);
+      font-size: 10px;
+      font-weight: 500;
+    }
+
+    @keyframes breatheLine {
+      0%,
+      100% {
+        opacity: 0.3;
+        transform: scaleX(0.58);
+      }
+      46% {
+        opacity: 1;
+        transform: scaleX(1);
+      }
+      72% {
+        opacity: 0.52;
+        transform: scaleX(0.82);
+      }
+    }
+
+    @media (max-width: 860px) {
+      .room {
+        background-position: center;
+      }
+
+      .edge-readout {
+        left: 16px;
+        right: 16px;
+        top: 16px;
+        font-size: 10px;
+      }
+
+      .edge-readout span:last-child {
+        display: none;
+      }
+
+      .voice {
+        bottom: 22px;
+      }
+
+      .mission-grid {
+        inset: 64px 16px 92px;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        overflow: hidden;
+      }
+
+      .side-stack.right {
+        display: none;
+      }
+
+      .center-space {
+        display: none;
+      }
+
+      .hud-panel {
+        padding: 12px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="cinema" aria-label="Jarvis volumetric interface">
+    <div class="room" aria-hidden="true"></div>
+    <canvas id="depth" aria-hidden="true"></canvas>
+    <canvas id="entity" aria-hidden="true"></canvas>
+    <canvas id="gpu-core" aria-hidden="true"></canvas>
+    <canvas id="projection" aria-hidden="true"></canvas>
+    <div class="grade" aria-hidden="true"></div>
+    <div class="grain" aria-hidden="true"></div>
+    <div class="scan" aria-hidden="true"></div>
+
+    <div class="edge-readout" aria-label="System status">
+      <span><b>JARVIS</b> / VOLUMETRIC FIELD</span>
+      <span>LOCAL ONLINE / DIRECT VOICE / WAITING</span>
+    </div>
+
+    <section class="mission-grid" aria-label="Jarvis daily dashboard">
+      <div class="side-stack left">
+        <article class="hud-panel weather-panel" aria-label="Weather">
+          <div class="panel-head">
+            <strong data-weather-city>西安天气</strong>
+            <span data-weather-status>CONNECTING</span>
+          </div>
+          <div class="weather-now">
+            <div class="weather-main">
+              <div>
+                <span class="weather-temp" data-weather-temp>--°</span>
+                <span class="weather-condition" data-weather-condition>正在连接真实天气</span>
+              </div>
+              <p class="weather-meta" data-weather-meta>Open-Meteo 实时数据源</p>
+            </div>
+            <div class="weather-metrics">
+              <span>
+                <small>体感</small>
+                <b data-weather-feels>--°</b>
+              </span>
+              <span>
+                <small>湿度</small>
+                <b data-weather-humidity>--%</b>
+              </span>
+              <span>
+                <small>风速</small>
+                <b data-weather-wind>-- km/h</b>
+              </span>
+            </div>
+          </div>
+        </article>
+
+        <article class="hud-panel" aria-label="Open tasks">
+          <div class="panel-head">
+            <strong>未完成工作</strong>
+            <span>4 ACTIVE</span>
+          </div>
+          <div class="task-row" data-level="high">
+            <i class="task-dot"></i>
+            <b>稳定 Jarvis 常驻聆听链路</b>
+            <span>今天</span>
+          </div>
+          <div class="task-row">
+            <i class="task-dot"></i>
+            <b>DeepSeek API Key 接入面板</b>
+            <span>待定</span>
+          </div>
+          <div class="task-row">
+            <i class="task-dot"></i>
+            <b>语音识别防重复授权</b>
+            <span>完成中</span>
+          </div>
+          <div class="task-row">
+            <i class="task-dot"></i>
+            <b>TTS 低沉男声方案验证</b>
+            <span>下一步</span>
+          </div>
+        </article>
+      </div>
+
+      <div class="center-space" aria-hidden="true"></div>
+
+      <div class="side-stack right">
+        <article class="hud-panel conversation-panel" aria-label="Conversation stream">
+          <div class="panel-head">
+            <strong>对话记录</strong>
+            <span>LIVE DIALOGUE</span>
+          </div>
+          <div class="chat-log" aria-live="polite">
+            <div class="chat-empty">等待你的第一句话。语音不可用时，备用文字输入会自动出现。</div>
+          </div>
+          <div class="status-strip" aria-label="Voice status">
+            <span>麦克风 <b data-skill="stt">WAITING</b></span>
+            <span>DeepSeek <b data-skill="deepseek">ONLINE</b></span>
+            <span>声音 <b data-skill="tts">BROWSER</b></span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <div class="voice" aria-label="Voice console">
+      <div class="breath-line" aria-hidden="true"></div>
+      <strong>我在听。</strong>
+      <span>直接说话，我会处理你说出的完整一句。</span>
+      <form class="talk-form" aria-label="Talk to Jarvis">
+        <input name="message" autocomplete="off" placeholder="备用文字输入" />
+        <button type="submit">发送</button>
+        <button type="button" class="listen-button">停用</button>
+      </form>
+      <div class="reply-line" aria-live="polite"></div>
+    </div>
+  </main>
+
+  <script>
+    if (window.location.protocol === "file:") {
+      window.location.replace("http://localhost:8787/concepts/central-consciousness-core-v4.html");
+    }
+
+    const depthCanvas = document.getElementById("depth");
+    const entityCanvas = document.getElementById("entity");
+    const gpuCanvas = document.getElementById("gpu-core");
+    const projectionCanvas = document.getElementById("projection");
+    const voiceConsole = document.querySelector(".voice");
+    const statusReadout = document.querySelector(".edge-readout span:last-child");
+    const talkForm = document.querySelector(".talk-form");
+    const talkInput = talkForm?.querySelector("input");
+    const talkButton = talkForm?.querySelector('button[type="submit"]');
+    const listenButton = document.querySelector(".listen-button");
+    const replyLine = document.querySelector(".reply-line");
+    const chatLog = document.querySelector(".chat-log");
+    const chatEmpty = document.querySelector(".chat-empty");
+    const panelRefs = {
+      weather: {
+        city: document.querySelector("[data-weather-city]"),
+        status: document.querySelector("[data-weather-status]"),
+        temp: document.querySelector("[data-weather-temp]"),
+        condition: document.querySelector("[data-weather-condition]"),
+        meta: document.querySelector("[data-weather-meta]"),
+        feels: document.querySelector("[data-weather-feels]"),
+        humidity: document.querySelector("[data-weather-humidity]"),
+        wind: document.querySelector("[data-weather-wind]")
+      },
+      skillState: {
+        stt: document.querySelector('[data-skill="stt"]'),
+        tts: document.querySelector('[data-skill="tts"]'),
+        deepseek: document.querySelector('[data-skill="deepseek"]')
+      }
+    };
+    const dtx = depthCanvas.getContext("2d", { alpha: true });
+    const etx = entityCanvas.getContext("2d", { alpha: true });
+    const ptx = projectionCanvas.getContext("2d", { alpha: true });
+    let THREE = null;
+    let gpuCore = null;
+    const TAU = Math.PI * 2;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    let width = 0;
+    let height = 0;
+    let dpr = 1;
+    let cx = 0;
+    let cy = 0;
+    let coreRadius = 260;
+    let focal = 760;
+    let depthDust = [];
+    let fogVolumes = [];
+    let entityParticles = [];
+    let wordParticles = [];
+    let foregroundBokeh = [];
+    let faceParticles = [];
+    let waveParticles = [];
+    let voiceTitle = null;
+    let voiceMeta = null;
+    let activeMode = "";
+    let manualWakeUntil = 0;
+    let chatHistory = [];
+    let recognition = null;
+    let recognitionActive = false;
+    let recognitionStarting = false;
+    let lastRecognitionError = "";
+    let autoListenEnabled = false;
+    let dialogOpen = false;
+    let listeningRetryTimer = null;
+    let listeningPrimed = false;
+    let microphoneStream = null;
+    let microphonePermissionRequested = false;
+    const pointerField = {
+      x: 0,
+      y: 0,
+      tx: 0,
+      ty: 0,
+      active: false,
+      pressure: 0
+    };
+    voiceTitle = voiceConsole.querySelector("strong");
+    voiceMeta = voiceConsole.querySelector("span");
+
+    function rand(min, max) {
+      return min + Math.random() * (max - min);
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function getInteractionState(time) {
+      const t = time * 0.001;
+      const loop = ((t + 1.2) % 18) / 18;
+      const wake = manualWakeUntil > performance.now();
+      const listening = recognitionActive || recognitionStarting || (!wake && autoListenEnabled);
+      const speaking = wake;
+      const attention = wake ? 1 : listening ? 0.34 + Math.sin(t * 0.9) * 0.06 : 0.18 + pulseShape((loop - 0.36) / 0.14) * 0.12;
+      const voiceEnergy =
+        speaking
+          ? 0.45 + Math.sin(t * 8.2) * 0.18 + Math.sin(t * 15.7 + 0.9) * 0.12
+          : listening
+            ? 0.28 + Math.sin(t * 5.5) * 0.11 + Math.sin(t * 13.5) * 0.035
+            : 0.05 + Math.sin(t * 1.2) * 0.02;
+      return {
+        loop,
+        wake,
+        listening,
+        speaking,
+        attention: clamp(attention, 0, 1),
+        voiceEnergy: clamp(voiceEnergy, 0, 1)
+      };
+    }
+
+    function updateVoiceConsole(state) {
+      const mode = state.speaking ? "speaking" : state.listening ? "listening" : "idle";
+      if (dialogOpen && mode === "idle") {
+        return;
+      }
+      if (mode === activeMode) {
+        return;
+      }
+      activeMode = mode;
+      if (mode === "speaking") {
+        voiceTitle.textContent = "收到。";
+        voiceMeta.textContent = "正在组织回应";
+        statusReadout.textContent = "LOCAL ONLINE / DIRECT VOICE / RESPONDING";
+      } else if (mode === "listening") {
+        voiceTitle.textContent = "我在听。";
+        voiceMeta.textContent = "直接说话，我会处理。";
+        statusReadout.textContent = "LOCAL ONLINE / DIRECT VOICE / LISTENING";
+      } else {
+        voiceTitle.textContent = "我在。";
+        voiceMeta.textContent = autoListenEnabled ? "直接说话，我会处理。" : "等待麦克风授权";
+        statusReadout.textContent = autoListenEnabled ? "LOCAL ONLINE / DIRECT VOICE / WAITING" : "LOCAL ONLINE / VOICE PERMISSION / WAITING";
+      }
+    }
+
+    function updatePanels(time) {
+    }
+
+    function setPanelText(node, text) {
+      if (node) {
+        node.textContent = text;
+      }
+    }
+
+    function appendChatMessage(role, text) {
+      if (!chatLog || !text) return;
+      chatEmpty?.remove();
+      const item = document.createElement("div");
+      item.className = "chat-message";
+      item.dataset.role = role;
+      const label = document.createElement("b");
+      label.textContent = role === "user" ? "你" : role === "system" ? "系统" : "JARVIS";
+      const body = document.createElement("p");
+      body.textContent = text;
+      item.append(label, body);
+      chatLog.append(item);
+      const extra = chatLog.querySelectorAll(".chat-message");
+      if (extra.length > 16) {
+        extra[0].remove();
+      }
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    function weatherCodeLabel(code) {
+      const value = Number(code);
+      if ([0].includes(value)) return "晴朗";
+      if ([1, 2].includes(value)) return "少云";
+      if ([3].includes(value)) return "阴";
+      if ([45, 48].includes(value)) return "雾";
+      if ([51, 53, 55, 56, 57].includes(value)) return "毛毛雨";
+      if ([61, 63, 65, 66, 67, 80, 81, 82].includes(value)) return "有雨";
+      if ([71, 73, 75, 77, 85, 86].includes(value)) return "降雪";
+      if ([95, 96, 99].includes(value)) return "雷暴";
+      return "实时天气";
+    }
+
+    function formatWeatherTime(value) {
+      if (!value) return "刚刚更新";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "刚刚更新";
+      return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")} 更新`;
+    }
+
+    async function loadWeather() {
+      const location = {
+        lat: 34.3416,
+        lng: 108.9398,
+        city: "西安",
+        source: "DEFAULT"
+      };
+      setPanelText(panelRefs.weather.status, "CONNECTING");
+      try {
+        const params = new URLSearchParams({
+          lat: String(location.lat),
+          lng: String(location.lng),
+          city: location.city,
+          source: location.source
+        });
+        const data = await fetchJson(`/api/weather?${params}`);
+        const current = data.current || {};
+        const city = data.location?.city || location.city;
+        const temp = Number(current.temperature_2m);
+        const feels = Number(current.apparent_temperature);
+        const humidity = Number(current.relative_humidity_2m);
+        const wind = Number(current.wind_speed_10m);
+        setPanelText(panelRefs.weather.city, `${city}天气`);
+        setPanelText(panelRefs.weather.status, data.stale ? "CACHED" : "LIVE");
+        setPanelText(panelRefs.weather.temp, Number.isFinite(temp) ? `${Math.round(temp)}°` : "--°");
+        setPanelText(panelRefs.weather.condition, weatherCodeLabel(current.weather_code));
+        setPanelText(panelRefs.weather.meta, `${formatWeatherTime(data.fetchedAt)} / Open-Meteo`);
+        setPanelText(panelRefs.weather.feels, Number.isFinite(feels) ? `${Math.round(feels)}°` : "--°");
+        setPanelText(panelRefs.weather.humidity, Number.isFinite(humidity) ? `${Math.round(humidity)}%` : "--%");
+        setPanelText(panelRefs.weather.wind, Number.isFinite(wind) ? `${Math.round(wind)} km/h` : "-- km/h");
+      } catch (error) {
+        setPanelText(panelRefs.weather.status, "OFFLINE");
+        setPanelText(panelRefs.weather.condition, "天气连接失败");
+        setPanelText(panelRefs.weather.meta, error.message || "Open-Meteo 暂不可用");
+      }
+    }
+
+    async function fetchJson(url) {
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return response.json();
+    }
+
+    async function postJson(url, payload) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP ${response.status}`);
+      }
+      return data;
+    }
+
+    function speak(text) {
+      if (!("speechSynthesis" in window) || !text) {
+        setPanelText(panelRefs.skillState.tts, "UNAVAILABLE");
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text.replace(/\s+/g, " ").slice(0, 360));
+      utterance.lang = "zh-CN";
+      utterance.rate = 0.78;
+      utterance.pitch = 0.42;
+      utterance.volume = 0.95;
+      const voices = window.speechSynthesis.getVoices();
+      const scoreVoice = (voice) => {
+        const name = `${voice.name} ${voice.lang}`.toLowerCase();
+        let score = 0;
+        if (/zh|cn|chinese|mandarin|普通话|中文/.test(name)) score += 8;
+        if (/yunxi|kangkang|huihui|liang|male|男|deep|bass|baritone/.test(name)) score += 8;
+        if (/microsoft|edge|natural|online/.test(name)) score += 3;
+        if (/xiaoxiao|xiaoyi|female|女/.test(name)) score -= 5;
+        return score;
+      };
+      const maleLike =
+        voices
+          .slice()
+          .sort((a, b) => scoreVoice(b) - scoreVoice(a))[0] ||
+        null;
+      if (maleLike) {
+        utterance.voice = maleLike;
+        setPanelText(panelRefs.skillState.tts, /female|女|xiaoxiao|xiaoyi/i.test(maleLike.name) ? "LOWERED" : "MALE");
+      } else {
+        setPanelText(panelRefs.skillState.tts, "DEFAULT");
+      }
+      window.speechSynthesis.speak(utterance);
+    }
+
+    async function sendMessage(message) {
+      const text = message.trim();
+      if (!text) {
+        return;
+      }
+      manualWakeUntil = performance.now() + 12000;
+      setPanelText(voiceTitle, "正在思考。");
+      setPanelText(voiceMeta, "DeepSeek 连接中");
+      setPanelText(replyLine, "...");
+      appendChatMessage("user", text);
+      setPanelText(panelRefs.skillState.deepseek, "THINKING");
+      if (talkButton) {
+        talkButton.disabled = true;
+      }
+      try {
+        const data = await postJson("/api/chat", {
+          message: text,
+          history: chatHistory
+        });
+        const answer = data.text || "我收到了，但没有得到有效回复。";
+        chatHistory = [
+          ...chatHistory,
+          { role: "user", content: text },
+          { role: "assistant", content: answer }
+        ].slice(-10);
+        setPanelText(voiceTitle, "收到。");
+        setPanelText(voiceMeta, data.model ? `DeepSeek / ${data.model}` : "DeepSeek 已回应");
+        setPanelText(replyLine, answer);
+        appendChatMessage("assistant", answer);
+        setPanelText(panelRefs.skillState.deepseek, "ONLINE");
+        speak(answer);
+      } catch (error) {
+        setPanelText(voiceTitle, "连接失败。");
+        setPanelText(voiceMeta, "检查 DEEPSEEK_API_KEY");
+        setPanelText(replyLine, error.message || "DeepSeek 后端暂不可用。");
+        appendChatMessage("system", error.message || "DeepSeek 后端暂不可用。");
+        setPanelText(panelRefs.skillState.deepseek, "ERROR");
+      } finally {
+        if (talkButton) {
+          talkButton.disabled = false;
+        }
+      }
+    }
+
+    function setDialogOpen(open) {
+      dialogOpen = open;
+      voiceConsole.classList.toggle("dialog-open", open);
+      if (open) {
+        setPanelText(voiceTitle, "对话框已打开。");
+        setPanelText(voiceMeta, "备用文字输入已启用");
+        setPanelText(replyLine, "你也可以继续直接说话。");
+        talkInput?.focus();
+      } else {
+        setPanelText(voiceTitle, "我在。");
+        setPanelText(voiceMeta, autoListenEnabled ? "直接说话，我会处理。" : "等待麦克风授权");
+      }
+    }
+
+    function handleLocalVoiceCommand(text) {
+      const normalized = text.replace(/[，。！？,.!?]/g, " ").replace(/\s+/g, " ").trim();
+      if (/打开\s*(对话框|输入框|文字|键盘)/.test(normalized)) {
+        setDialogOpen(true);
+        speak("对话框已打开。");
+        return true;
+      }
+      if (/关闭\s*(对话框|输入框|文字|键盘)/.test(normalized)) {
+        setDialogOpen(false);
+        speak("对话框已关闭。");
+        return true;
+      }
+      return false;
+    }
+
+    function openTextFallback(message) {
+      autoListenEnabled = false;
+      recognitionStarting = false;
+      if (listeningRetryTimer) {
+        window.clearTimeout(listeningRetryTimer);
+        listeningRetryTimer = null;
+      }
+      setDialogOpen(true);
+      setPanelText(voiceTitle, "语音暂不可用。");
+      setPanelText(voiceMeta, "浏览器识别服务连接失败，已切换备用文字输入");
+      setPanelText(replyLine, message);
+      setPanelText(panelRefs.skillState.stt, "CLOUD OFF");
+      appendChatMessage("system", message);
+      if (listenButton) {
+        listenButton.textContent = "重试语音";
+      }
+    }
+
+    function scheduleListeningRestart(delay = 850) {
+      if (!autoListenEnabled || recognitionActive || recognitionStarting || listeningRetryTimer) {
+        return;
+      }
+      listeningRetryTimer = window.setTimeout(() => {
+        listeningRetryTimer = null;
+        startContinuousListening();
+      }, delay);
+    }
+
+    function setupSpeechRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        setPanelText(panelRefs.skillState.stt, "UNAVAILABLE");
+        setPanelText(voiceMeta, "当前浏览器不支持语音识别，请用 Chrome 或 Edge");
+        if (listenButton) {
+          listenButton.disabled = true;
+          listenButton.textContent = "无语音";
+        }
+        return;
+      }
+      recognition = new SpeechRecognition();
+      recognition.lang = "zh-CN";
+      recognition.continuous = true;
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+      recognition.onstart = () => {
+        recognitionActive = true;
+        recognitionStarting = false;
+        lastRecognitionError = "";
+        listeningPrimed = true;
+        setPanelText(panelRefs.skillState.stt, "LISTENING");
+        setPanelText(voiceTitle, "我在听。");
+        setPanelText(voiceMeta, "直接说话，我会处理。");
+        if (listenButton) listenButton.textContent = "停用";
+      };
+      recognition.onend = () => {
+        recognitionActive = false;
+        recognitionStarting = false;
+        const stoppedByCloud = ["network", "not-allowed", "service-not-allowed", "audio-capture"].includes(lastRecognitionError);
+        setPanelText(panelRefs.skillState.stt, stoppedByCloud ? "CLOUD OFF" : (lastRecognitionError ? "ERROR" : (autoListenEnabled ? "ARMED" : "READY")));
+        if (listenButton) listenButton.textContent = stoppedByCloud ? "重试语音" : (autoListenEnabled ? "停用" : "启用");
+        if (stoppedByCloud) {
+          return;
+        }
+        scheduleListeningRestart(lastRecognitionError === "no-speech" ? 350 : 900);
+      };
+      recognition.onerror = (event) => {
+        const error = event?.error || "unknown";
+        const messages = {
+          "not-allowed": "麦克风权限被拒绝，请在地址栏允许麦克风",
+          "service-not-allowed": "语音服务被浏览器拦截，请用 localhost 打开",
+          "no-speech": "我在听，继续说。",
+          "audio-capture": "没有检测到麦克风输入",
+          "network": "浏览器语音识别服务连接失败",
+          "aborted": "语音识别已停止"
+        };
+        lastRecognitionError = error;
+        setPanelText(panelRefs.skillState.stt, error === "no-speech" ? "LISTENING" : "ERROR");
+        setPanelText(voiceTitle, error === "no-speech" ? "我在听。" : "没有听清。");
+        setPanelText(voiceMeta, messages[error] || `语音识别错误：${error}`);
+        if (["network", "not-allowed", "service-not-allowed", "audio-capture"].includes(error)) {
+          openTextFallback(messages[error] || `语音识别错误：${error}`);
+          return;
+        }
+        if (error !== "no-speech") {
+          setPanelText(replyLine, messages[error] || `语音识别错误：${error}`);
+        }
+      };
+      recognition.onresult = (event) => {
+        const result = event.results[event.results.length - 1];
+        const transcript = result?.[0]?.transcript?.trim() || "";
+        if (!transcript) return;
+        setPanelText(replyLine, `听到：${transcript}`);
+        if (handleLocalVoiceCommand(transcript)) {
+          manualWakeUntil = performance.now() + 5000;
+          return;
+        }
+        manualWakeUntil = performance.now() + 14000;
+        sendMessage(transcript);
+      };
+      setPanelText(panelRefs.skillState.stt, "READY");
+    }
+
+    async function requestMicrophoneAccess() {
+      if (microphoneStream) {
+        return true;
+      }
+      if (microphonePermissionRequested && listeningPrimed) {
+        return true;
+      }
+      if (!navigator.mediaDevices?.getUserMedia) {
+        return true;
+      }
+      try {
+        microphonePermissionRequested = true;
+        microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        return true;
+      } catch (error) {
+        microphonePermissionRequested = false;
+        setPanelText(panelRefs.skillState.stt, "BLOCKED");
+        setPanelText(voiceTitle, "麦克风被拦截。");
+        setPanelText(voiceMeta, "请在浏览器地址栏允许麦克风，然后点击页面");
+        setPanelText(replyLine, "请使用 http://localhost:8787/concepts/central-consciousness-core-v4.html，不要用 file:// 打开。");
+        return false;
+      }
+    }
+
+    async function startContinuousListening() {
+      if (!recognition) return;
+      if (recognitionActive || recognitionStarting) return;
+      autoListenEnabled = true;
+      recognitionStarting = true;
+      lastRecognitionError = "";
+      setPanelText(panelRefs.skillState.stt, "ASKING");
+      setPanelText(voiceTitle, listeningPrimed ? "我在听。" : "请求麦克风。");
+      setPanelText(voiceMeta, listeningPrimed ? "正在恢复常驻聆听" : "请允许浏览器使用麦克风一次");
+      const allowed = await requestMicrophoneAccess();
+      if (!allowed) {
+        recognitionStarting = false;
+        return;
+      }
+      try {
+        recognition.start();
+      } catch (error) {
+        recognitionStarting = false;
+        setPanelText(panelRefs.skillState.stt, "ERROR");
+        setPanelText(voiceTitle, "语音启动失败。");
+        setPanelText(voiceMeta, error.message || "请刷新后再试");
+        scheduleListeningRestart(1600);
+      }
+    }
+
+    function stopContinuousListening() {
+      autoListenEnabled = false;
+      if (listeningRetryTimer) {
+        window.clearTimeout(listeningRetryTimer);
+        listeningRetryTimer = null;
+      }
+      if (recognitionActive || recognitionStarting) {
+        recognition.stop();
+      }
+      recognitionStarting = false;
+      setPanelText(panelRefs.skillState.stt, "PAUSED");
+      setPanelText(voiceTitle, "监听已暂停。");
+      setPanelText(voiceMeta, "点击页面可重新启用");
+    }
+
+    function toggleListening() {
+      if (autoListenEnabled || recognitionActive || recognitionStarting) {
+        stopContinuousListening();
+      } else {
+        startContinuousListening();
+      }
+    }
+
+    function setupCanvas(canvas, ctx) {
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function resize() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      setupCanvas(depthCanvas, dtx);
+      setupCanvas(entityCanvas, etx);
+      setupCanvas(projectionCanvas, ptx);
+      cx = width * 0.5;
+      cy = height * 0.47;
+      coreRadius = Math.min(width, height) * 0.31;
+      focal = Math.max(620, Math.min(width, height) * 1.08);
+      buildScene();
+      resizeGpuCore();
+      rebuildGpuCoreTargets();
+    }
+
+    function buildScene() {
+      depthDust = Array.from({ length: Math.floor(clamp(width * height / 1600, 520, 1600)) }, () => ({
+        x: rand(-width * 0.1, width * 1.1),
+        y: rand(-height * 0.05, height * 1.05),
+        z: rand(-520, 760),
+        size: rand(0.35, 2.4),
+        alpha: rand(0.035, 0.22),
+        phase: rand(0, TAU),
+        vx: rand(-0.03, 0.05),
+        vy: rand(-0.02, 0.04)
+      }));
+
+      fogVolumes = Array.from({ length: 58 }, () => ({
+        x: rand(width * 0.08, width * 0.92),
+        y: rand(height * 0.5, height * 1.08),
+        z: rand(-220, 520),
+        r: rand(82, 280),
+        alpha: rand(0.018, 0.09),
+        phase: rand(0, TAU),
+        speed: rand(0.000025, 0.00009)
+      }));
+
+      foregroundBokeh = Array.from({ length: 34 }, () => ({
+        x: rand(-width * 0.05, width * 1.05),
+        y: rand(height * 0.05, height * 0.96),
+        z: rand(-700, -180),
+        r: rand(4, 34),
+        alpha: rand(0.025, 0.12),
+        phase: rand(0, TAU),
+        speed: rand(0.00002, 0.00007)
+      }));
+
+      const particleCount = Math.floor(clamp(coreRadius * 38, 9800, 17600));
+      entityParticles = Array.from({ length: particleCount }, () => {
+        const kind = Math.random();
+        const theta = rand(0, TAU);
+        const phi = Math.acos(rand(-1, 1));
+        const shellBias = kind > 0.42 ? rand(0.68, 1.08) : rand(0.14, 0.72);
+        return {
+          theta,
+          phi,
+          shell: shellBias,
+          size: rand(0.42, kind > 0.84 ? 1.7 : 1.05),
+          alpha: rand(0.12, kind > 0.7 ? 0.82 : 0.46),
+          phase: rand(0, TAU),
+          wobble: rand(0.12, 0.68),
+          speed: rand(0.09, 0.46),
+          drift: rand(0.2, 1.8),
+          family: kind
+        };
+      });
+
+      wordParticles = buildWord();
+      faceParticles = buildFaceParticles();
+      waveParticles = buildWaveParticles();
+    }
+
+    function addParticleLine(points, x1, y1, x2, y2, count, weight = 1) {
+      for (let i = 0; i < count; i++) {
+        const u = count <= 1 ? 0 : i / (count - 1);
+        points.push({
+          x: x1 + (x2 - x1) * u + rand(-1.6, 1.6),
+          y: y1 + (y2 - y1) * u + rand(-1.4, 1.4),
+          z: rand(-42, 82),
+          size: rand(0.5, 1.35) * weight,
+          alpha: rand(0.28, 0.86),
+          phase: rand(0, TAU),
+          looseness: rand(1.2, 5.5)
+        });
+      }
+    }
+
+    function addParticleEllipse(points, cx0, cy0, rx, ry, count, start = 0, end = TAU, weight = 1) {
+      const arc = end - start;
+      for (let i = 0; i < count; i++) {
+        const u = count <= 1 ? 0 : i / (count - 1);
+        const angle = start + arc * u + rand(-0.012, 0.012);
+        points.push({
+          x: cx0 + Math.cos(angle) * rx + rand(-1.8, 1.8),
+          y: cy0 + Math.sin(angle) * ry + rand(-1.5, 1.5),
+          z: rand(-46, 96),
+          size: rand(0.48, 1.42) * weight,
+          alpha: rand(0.22, 0.84),
+          phase: rand(0, TAU),
+          looseness: rand(1.0, 6.2)
+        });
+      }
+    }
+
+    function buildFaceParticles() {
+      const points = [];
+      const r = coreRadius;
+      addParticleLine(points, -r * 0.42, -r * 0.34, -r * 0.2, -r * 0.5, 150, 0.78);
+      addParticleLine(points, r * 0.42, -r * 0.34, r * 0.2, -r * 0.5, 150, 0.78);
+      addParticleLine(points, -r * 0.42, -r * 0.34, -r * 0.49, r * 0.04, 180, 0.72);
+      addParticleLine(points, r * 0.42, -r * 0.34, r * 0.49, r * 0.04, 180, 0.72);
+      addParticleLine(points, -r * 0.49, r * 0.04, -r * 0.28, r * 0.42, 190, 0.82);
+      addParticleLine(points, r * 0.49, r * 0.04, r * 0.28, r * 0.42, 190, 0.82);
+      addParticleLine(points, -r * 0.28, r * 0.42, 0, r * 0.53, 170, 0.9);
+      addParticleLine(points, r * 0.28, r * 0.42, 0, r * 0.53, 170, 0.9);
+
+      addParticleLine(points, -r * 0.38, -r * 0.16, -r * 0.13, -r * 0.2, 220, 1.18);
+      addParticleLine(points, r * 0.38, -r * 0.16, r * 0.13, -r * 0.2, 220, 1.18);
+      addParticleLine(points, -r * 0.34, -r * 0.1, -r * 0.13, -r * 0.13, 170, 1.02);
+      addParticleLine(points, r * 0.34, -r * 0.1, r * 0.13, -r * 0.13, 170, 1.02);
+      addParticleLine(points, -r * 0.13, -r * 0.2, -r * 0.08, -r * 0.08, 90, 0.86);
+      addParticleLine(points, r * 0.13, -r * 0.2, r * 0.08, -r * 0.08, 90, 0.86);
+
+      addParticleLine(points, 0, -r * 0.36, 0, r * 0.22, 260, 1.05);
+      addParticleLine(points, -r * 0.055, -r * 0.04, 0, r * 0.16, 120, 0.9);
+      addParticleLine(points, r * 0.055, -r * 0.04, 0, r * 0.16, 120, 0.9);
+      addParticleLine(points, -r * 0.2, r * 0.2, -r * 0.07, r * 0.28, 130, 0.92);
+      addParticleLine(points, r * 0.2, r * 0.2, r * 0.07, r * 0.28, 130, 0.92);
+      addParticleLine(points, -r * 0.07, r * 0.28, r * 0.07, r * 0.28, 100, 0.86);
+
+      addParticleLine(points, -r * 0.3, -r * 0.35, -r * 0.12, r * 0.36, 220, 0.5);
+      addParticleLine(points, r * 0.3, -r * 0.35, r * 0.12, r * 0.36, 220, 0.5);
+      addParticleLine(points, -r * 0.18, -r * 0.42, r * 0.18, -r * 0.42, 180, 0.46);
+      addParticleLine(points, -r * 0.18, r * 0.36, r * 0.18, r * 0.36, 160, 0.46);
+
+      addParticleEllipse(points, 0, r * 0.02, r * 0.47, r * 0.58, 420, Math.PI * 0.1, Math.PI * 0.9, 0.52);
+      return points;
+    }
+
+    function buildWaveParticles() {
+      const points = [];
+      const rows = 7;
+      const columns = 180;
+      for (let row = 0; row < rows; row++) {
+        const rowOffset = (row - (rows - 1) / 2) * coreRadius * 0.024;
+        for (let i = 0; i < columns; i++) {
+          const u = i / (columns - 1);
+          points.push({
+            x: (u - 0.5) * coreRadius * 1.32 + rand(-1.2, 1.2),
+            y: rowOffset + rand(-0.8, 0.8),
+            z: rand(-68, 100),
+            band: row,
+            u,
+            size: rand(0.46, 1.18),
+            alpha: rand(0.2, 0.82),
+            phase: rand(0, TAU)
+          });
+        }
+      }
+      return points;
+    }
+
+    function updatePointerField() {
+      pointerField.x += (pointerField.tx - pointerField.x) * 0.14;
+      pointerField.y += (pointerField.ty - pointerField.y) * 0.14;
+      pointerField.pressure += ((pointerField.active ? 1 : 0) - pointerField.pressure) * 0.075;
+    }
+
+    function buildWord() {
+      const offscreen = document.createElement("canvas");
+      const ctx = offscreen.getContext("2d");
+      const ow = 1200;
+      const oh = 300;
+      offscreen.width = ow;
+      offscreen.height = oh;
+      ctx.clearRect(0, 0, ow, oh);
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.save();
+      ctx.translate(ow / 2, oh / 2);
+      ctx.transform(1, -0.05, -0.18, 1, 0, 0);
+      ctx.font = "900 172px Bahnschrift, Impact, sans-serif";
+      ctx.fillText("JARVIS", 0, 12);
+      ctx.restore();
+
+      const pixels = ctx.getImageData(0, 0, ow, oh).data;
+      const scale = (coreRadius * 1.88) / ow;
+      const step = coreRadius > 320 ? 4 : 5;
+      const points = [];
+      for (let y = 0; y < oh; y += step) {
+        for (let x = 0; x < ow; x += step) {
+          const alpha = pixels[(y * ow + x) * 4 + 3];
+          if (alpha > 64 && Math.random() < 0.48) {
+            points.push({
+              x: (x - ow / 2) * scale,
+              y: (y - oh / 2) * scale * 0.92,
+              z: rand(-50, 110),
+              size: rand(0.65, 1.72),
+              alpha: rand(0.38, 0.9) * (alpha / 255),
+              phase: rand(0, TAU),
+              looseness: rand(0.6, 3.6),
+              hot: Math.random() > 0.988
+            });
+          }
+        }
+      }
+
+      const max = Math.floor(clamp(coreRadius * 16, 3600, 7200));
+      while (points.length > max) {
+        points.splice(Math.floor(Math.random() * points.length), 1);
+      }
+      return points;
+    }
+
+    function fieldNoise(x, y, z, t, phase) {
+      const n1 = Math.sin(x * 1.37 + y * 0.71 + t * 0.73 + phase);
+      const n2 = Math.sin(y * 1.91 - z * 0.64 + t * 0.41 + phase * 0.7);
+      const n3 = Math.cos(z * 1.23 + x * 0.82 - t * 0.57 + phase * 1.3);
+      return {
+        x: (n1 + n2 * 0.55) * 0.5,
+        y: (n2 - n3 * 0.48) * 0.5,
+        z: (n3 + n1 * 0.42) * 0.5
+      };
+    }
+
+    function rotate3d(point, yaw, pitch, roll) {
+      let { x, y, z } = point;
+      const cyaw = Math.cos(yaw);
+      const syaw = Math.sin(yaw);
+      const cpitch = Math.cos(pitch);
+      const spitch = Math.sin(pitch);
+      const croll = Math.cos(roll);
+      const sroll = Math.sin(roll);
+
+      const x1 = x * cyaw - z * syaw;
+      const z1 = x * syaw + z * cyaw;
+      x = x1;
+      z = z1;
+
+      const y1 = y * cpitch - z * spitch;
+      const z2 = y * spitch + z * cpitch;
+      y = y1;
+      z = z2;
+
+      const x2 = x * croll - y * sroll;
+      const y2 = x * sroll + y * croll;
+      return { x: x2, y: y2, z };
+    }
+
+    function project(point) {
+      const scale = focal / (focal + point.z);
+      return {
+        x: cx + point.x * scale,
+        y: cy + point.y * scale,
+        scale
+      };
+    }
+
+    function sampleTextShape(text, particleCount, scaleFactor = 1) {
+      const offscreen = document.createElement("canvas");
+      const ctx = offscreen.getContext("2d");
+      const ow = 1200;
+      const oh = 360;
+      offscreen.width = ow;
+      offscreen.height = oh;
+      ctx.clearRect(0, 0, ow, oh);
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.save();
+      ctx.translate(ow / 2, oh / 2);
+      ctx.transform(1, -0.05, -0.16, 1, 0, 0);
+      ctx.font = "900 184px Bahnschrift, Impact, sans-serif";
+      ctx.fillText(text, 0, 16);
+      ctx.restore();
+      const data = ctx.getImageData(0, 0, ow, oh).data;
+      const valid = [];
+      for (let y = 0; y < oh; y += 3) {
+        for (let x = 0; x < ow; x += 3) {
+          const alpha = data[(y * ow + x) * 4 + 3];
+          if (alpha > 60) {
+            valid.push({ x, y, alpha: alpha / 255 });
+          }
+        }
+      }
+      const positions = new Float32Array(particleCount * 3);
+      const colors = new Float32Array(particleCount * 3);
+      const sx = coreRadius * 2.0 * scaleFactor / ow;
+      const sy = coreRadius * 2.0 * scaleFactor / ow;
+      for (let i = 0; i < particleCount; i++) {
+        const p = valid[(i * 37) % Math.max(1, valid.length)] || { x: ow / 2, y: oh / 2, alpha: 1 };
+        const i3 = i * 3;
+        positions[i3] = (p.x - ow / 2) * sx + rand(-1.4, 1.4);
+        positions[i3 + 1] = (p.y - oh / 2) * sy * 0.9 + rand(-1.2, 1.2);
+        positions[i3 + 2] = rand(-coreRadius * 0.22, coreRadius * 0.22) + (p.alpha - 0.5) * coreRadius * 0.12;
+        const hot = Math.random() > 0.986;
+        colors[i3] = hot ? 1 : 0.28 + p.alpha * 0.25;
+        colors[i3 + 1] = hot ? 0.74 : 0.9 + p.alpha * 0.1;
+        colors[i3 + 2] = hot ? 0.32 : 1;
+      }
+      return { positions, colors };
+    }
+
+    function createGpuShapeTargets(particleCount) {
+      const wave = { positions: new Float32Array(particleCount * 3), colors: new Float32Array(particleCount * 3) };
+      const face = { positions: new Float32Array(particleCount * 3), colors: new Float32Array(particleCount * 3) };
+      const mist = { positions: new Float32Array(particleCount * 3), colors: new Float32Array(particleCount * 3) };
+      const text = sampleTextShape("JARVIS", particleCount, 1);
+
+      for (let i = 0; i < particleCount; i++) {
+        const i3 = i * 3;
+        const u = i / particleCount;
+        const lane = i % 9;
+        const a = u * TAU * 18 + lane * 0.34;
+        const band = (lane - 4) / 4;
+        const envelope = Math.sin((u % 1) * Math.PI);
+        wave.positions[i3] = (u - 0.5) * coreRadius * 1.92 + Math.sin(a * 0.13) * coreRadius * 0.05;
+        wave.positions[i3 + 1] = Math.sin(a) * coreRadius * (0.09 + envelope * 0.1) + band * coreRadius * 0.045;
+        wave.positions[i3 + 2] = Math.cos(a * 0.64 + band) * coreRadius * 0.34;
+
+        const theta = rand(0, TAU);
+        const phi = Math.acos(rand(-1, 1));
+        const shell = Math.pow(Math.random(), 0.48);
+        const sinPhi = Math.sin(phi);
+        mist.positions[i3] = Math.cos(theta) * sinPhi * coreRadius * (0.28 + shell * 0.68);
+        mist.positions[i3 + 1] = Math.cos(phi) * coreRadius * (0.22 + shell * 0.46);
+        mist.positions[i3 + 2] = Math.sin(theta) * sinPhi * coreRadius * (0.24 + shell * 0.82);
+
+        const side = i % 2 ? -1 : 1;
+        const faceU = (i % Math.floor(particleCount / 2)) / Math.floor(particleCount / 2);
+        const curve = Math.sin(faceU * Math.PI);
+        const brow = Math.sin(faceU * TAU * 2.0 + side) * coreRadius * 0.04;
+        let fx;
+        let fy;
+        let fz;
+        if (i % 5 === 0) {
+          const eyeAngle = faceU * TAU;
+          fx = side * coreRadius * (0.18 + Math.cos(eyeAngle) * 0.13);
+          fy = -coreRadius * 0.13 + Math.sin(eyeAngle) * coreRadius * 0.045;
+          fz = Math.sin(eyeAngle) * coreRadius * 0.08;
+        } else if (i % 5 === 1) {
+          fx = side * coreRadius * (0.34 - curve * 0.08);
+          fy = -coreRadius * 0.42 + faceU * coreRadius * 0.9;
+          fz = Math.sin(faceU * TAU) * coreRadius * 0.12;
+        } else if (i % 5 === 2) {
+          fx = (faceU - 0.5) * coreRadius * 0.22;
+          fy = -coreRadius * 0.28 + faceU * coreRadius * 0.58;
+          fz = coreRadius * 0.1;
+        } else if (i % 5 === 3) {
+          fx = (faceU - 0.5) * coreRadius * 0.44;
+          fy = coreRadius * 0.28 + Math.sin(faceU * Math.PI) * coreRadius * 0.08;
+          fz = Math.cos(faceU * TAU) * coreRadius * 0.06;
+        } else {
+          const outline = faceU * TAU;
+          fx = Math.cos(outline) * coreRadius * 0.42;
+          fy = Math.sin(outline) * coreRadius * 0.56 + brow;
+          fz = Math.sin(outline * 2) * coreRadius * 0.1;
+        }
+        face.positions[i3] = fx + rand(-3, 3);
+        face.positions[i3 + 1] = fy + rand(-3, 3);
+        face.positions[i3 + 2] = fz + rand(-5, 5);
+
+        const cyan = 0.72 + Math.random() * 0.28;
+        const amber = Math.random() > 0.988;
+        for (const target of [wave, face, mist]) {
+          target.colors[i3] = amber ? 1 : 0.2 + Math.random() * 0.18;
+          target.colors[i3 + 1] = amber ? 0.76 : cyan;
+          target.colors[i3 + 2] = amber ? 0.34 : 1;
+        }
+      }
+      return { wave, text, face, mist };
+    }
+
+    function makeGpuShaderMaterial() {
+      return new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        uniforms: {
+          uTime: { value: 0 },
+          uMorph: { value: 0 },
+          uPointSize: { value: Math.max(78, coreRadius * 0.42) },
+          uEffect: { value: 0 },
+          uEffectMix: { value: 0 },
+          uVoice: { value: 0 },
+          uWake: { value: 0 },
+          uPointer: { value: new THREE.Vector2(0, 0) },
+          uPointerPressure: { value: 0 }
+        },
+        vertexShader: `
+          uniform float uTime;
+          uniform float uMorph;
+          uniform float uPointSize;
+          uniform float uEffect;
+          uniform float uEffectMix;
+          uniform float uVoice;
+          uniform float uWake;
+          uniform vec2 uPointer;
+          uniform float uPointerPressure;
+          attribute vec3 targetPosition;
+          attribute vec3 colorA;
+          attribute vec3 colorB;
+          attribute vec3 randomOffset;
+          varying vec3 vColor;
+          varying float vAlpha;
+          float hash(float n) { return fract(sin(n) * 43758.5453123); }
+          void main() {
+            vec3 pos = mix(position, targetPosition, uMorph);
+            vec3 origin = pos;
+            float dist = length(pos);
+            float ripple = sin(dist * 0.022 + uTime * (2.2 + uVoice * 3.0) + randomOffset.x * 4.0);
+            pos += normalize(pos + randomOffset * 12.0) * ripple * (3.0 + uVoice * 16.0);
+            if (uEffect > 0.5 && uEffect < 1.5) {
+              vec3 scatterDir = normalize(pos + randomOffset * 80.0);
+              pos = mix(pos, pos + scatterDir * (40.0 + dist * 0.34), uEffectMix);
+            } else if (uEffect > 1.5 && uEffect < 2.5) {
+              float angle = atan(pos.z, pos.x);
+              float radius = length(pos.xz);
+              float spin = angle + uTime * (1.4 + uWake * 2.2) + pos.y * 0.008;
+              float pull = 1.0 - clamp(abs(pos.y) / 420.0, 0.0, 1.0);
+              pos.x = cos(spin) * radius * (1.0 - pull * 0.2 * uEffectMix);
+              pos.z = sin(spin) * radius * (1.0 - pull * 0.2 * uEffectMix);
+              pos.y += sin(uTime * 2.0 + radius * 0.018) * 24.0 * uEffectMix;
+            } else if (uEffect > 2.5) {
+              float wave = sin(pos.x * 0.018 + uTime * 3.0) + cos(pos.z * 0.018 + uTime * 2.2);
+              pos.y += wave * 28.0 * uEffectMix;
+              pos.x += sin(pos.z * 0.014 + uTime) * 8.0 * uEffectMix;
+            }
+            vec2 screenish = pos.xy / 460.0;
+            vec2 delta = screenish - uPointer;
+            float pressure = uPointerPressure * pow(max(0.0, 1.0 - length(delta) * 1.6), 2.0);
+            pos.xy += normalize(vec2(delta.x + 0.0001, delta.y + 0.0001)) * pressure * 52.0;
+            vColor = mix(colorA, colorB, uMorph);
+            vColor = mix(vColor, vec3(1.0, 0.78, 0.35), pressure * 0.45);
+            vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+            float sparkle = 0.65 + sin(uTime * 4.0 + randomOffset.z * 12.0 + dist * 0.025) * 0.35;
+            gl_PointSize = (uPointSize / -mvPosition.z) * (0.7 + sparkle * 0.85 + uWake * 0.3 + pressure * 1.2);
+            gl_Position = projectionMatrix * mvPosition;
+            vAlpha = clamp(0.42 + sparkle * 0.42 + uVoice * 0.18 + pressure * 0.4, 0.08, 1.0);
+          }
+        `,
+        fragmentShader: `
+          varying vec3 vColor;
+          varying float vAlpha;
+          void main() {
+            float d = distance(gl_PointCoord, vec2(0.5));
+            if (d > 0.5) discard;
+            float core = pow(1.0 - d * 2.0, 1.55);
+            float halo = pow(1.0 - d, 4.0) * 0.3;
+            gl_FragColor = vec4(vColor * (1.35 + core), (core + halo) * vAlpha);
+          }
+        `
+      });
+    }
+
+    async function initGpuCore() {
+      if (gpuCore || reducedMotion) return;
+      try {
+        THREE = await import("https://esm.sh/three@0.182.0");
+        const renderer = new THREE.WebGLRenderer({
+          canvas: gpuCanvas,
+          alpha: true,
+          antialias: false,
+          powerPreference: "high-performance"
+        });
+        renderer.setClearColor(0x000000, 0);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(48, Math.max(1, width / height), 1, 2600);
+        camera.position.z = 820;
+        const particleCount = Math.floor(clamp(Math.min(width, height) * 82, 48000, 90000));
+        const shapes = createGpuShapeTargets(particleCount);
+        const positions = new Float32Array(shapes.mist.positions);
+        const targets = new Float32Array(shapes.mist.positions);
+        const colorA = new Float32Array(shapes.mist.colors);
+        const colorB = new Float32Array(shapes.mist.colors);
+        const randomOffsets = new Float32Array(particleCount * 3);
+        for (let i = 0; i < particleCount; i++) {
+          const i3 = i * 3;
+          randomOffsets[i3] = rand(-1, 1);
+          randomOffsets[i3 + 1] = rand(-1, 1);
+          randomOffsets[i3 + 2] = rand(-1, 1);
+        }
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute("targetPosition", new THREE.BufferAttribute(targets, 3));
+        geometry.setAttribute("colorA", new THREE.BufferAttribute(colorA, 3));
+        geometry.setAttribute("colorB", new THREE.BufferAttribute(colorB, 3));
+        geometry.setAttribute("randomOffset", new THREE.BufferAttribute(randomOffsets, 3));
+        const material = makeGpuShaderMaterial();
+        const points = new THREE.Points(geometry, material);
+        scene.add(points);
+        gpuCore = {
+          renderer,
+          scene,
+          camera,
+          geometry,
+          material,
+          points,
+          shapes,
+          particleCount,
+          currentShape: "mist",
+          targetShape: "mist",
+          morph: 0,
+          targetMorph: 0,
+          effect: 1,
+          effectMix: 0.42,
+          ready: true
+        };
+        entityCanvas.style.opacity = "0.22";
+        resizeGpuCore();
+      } catch (error) {
+        console.warn("GPU core unavailable, using canvas fallback.", error);
+        gpuCore = { ready: false };
+      }
+    }
+
+    function resizeGpuCore() {
+      if (!gpuCore?.ready) return;
+      gpuCore.renderer.setSize(width, height, false);
+      gpuCore.camera.aspect = Math.max(1, width / height);
+      gpuCore.camera.updateProjectionMatrix();
+      gpuCore.material.uniforms.uPointSize.value = Math.max(78, coreRadius * 0.42);
+    }
+
+    function rebuildGpuCoreTargets() {
+      if (!gpuCore?.ready) return;
+      gpuCore.shapes = createGpuShapeTargets(gpuCore.particleCount);
+      gpuCore.currentShape = "mist";
+      gpuCore.targetShape = "";
+      gpuCore.morph = 0;
+      gpuCore.targetMorph = 0;
+      const shape = gpuCore.shapes.mist;
+      gpuCore.geometry.attributes.position.array.set(shape.positions);
+      gpuCore.geometry.attributes.colorA.array.set(shape.colors);
+      gpuCore.geometry.attributes.targetPosition.array.set(shape.positions);
+      gpuCore.geometry.attributes.colorB.array.set(shape.colors);
+      gpuCore.geometry.attributes.position.needsUpdate = true;
+      gpuCore.geometry.attributes.colorA.needsUpdate = true;
+      gpuCore.geometry.attributes.targetPosition.needsUpdate = true;
+      gpuCore.geometry.attributes.colorB.needsUpdate = true;
+    }
+
+    function setGpuTarget(name) {
+      if (!gpuCore?.ready || gpuCore.targetShape === name) return;
+      const from = gpuCore.shapes[gpuCore.currentShape] || gpuCore.shapes.mist;
+      const to = gpuCore.shapes[name] || gpuCore.shapes.mist;
+      gpuCore.geometry.attributes.position.array.set(from.positions);
+      gpuCore.geometry.attributes.colorA.array.set(from.colors);
+      gpuCore.geometry.attributes.targetPosition.array.set(to.positions);
+      gpuCore.geometry.attributes.colorB.array.set(to.colors);
+      gpuCore.geometry.attributes.position.needsUpdate = true;
+      gpuCore.geometry.attributes.colorA.needsUpdate = true;
+      gpuCore.geometry.attributes.targetPosition.needsUpdate = true;
+      gpuCore.geometry.attributes.colorB.needsUpdate = true;
+      gpuCore.targetShape = name;
+      gpuCore.morph = 0;
+      gpuCore.targetMorph = 1;
+    }
+
+    function drawGpuCore(time, state) {
+      if (!gpuCore?.ready) return;
+      const t = time * 0.001;
+      const quietTextPulse = state.listening && Math.sin(t * 0.23) > 0.92;
+      const desiredShape = state.speaking ? "face" : state.wake || quietTextPulse ? "text" : "mist";
+      setGpuTarget(desiredShape);
+      gpuCore.morph += (gpuCore.targetMorph - gpuCore.morph) * 0.07;
+      if (gpuCore.morph > 0.985 && gpuCore.currentShape !== gpuCore.targetShape) {
+        gpuCore.currentShape = gpuCore.targetShape;
+        const shape = gpuCore.shapes[gpuCore.currentShape];
+        gpuCore.geometry.attributes.position.array.set(shape.positions);
+        gpuCore.geometry.attributes.colorA.array.set(shape.colors);
+        gpuCore.geometry.attributes.position.needsUpdate = true;
+        gpuCore.geometry.attributes.colorA.needsUpdate = true;
+        gpuCore.morph = 0;
+        gpuCore.targetMorph = 0;
+      }
+      const effect = state.speaking ? 2 : state.wake ? 2 : state.listening ? 1 : 1;
+      gpuCore.effect += (effect - gpuCore.effect) * 0.035;
+      gpuCore.effectMix += ((state.speaking ? 0.9 : state.listening ? 0.54 : 0.4) - gpuCore.effectMix) * 0.035;
+      gpuCore.points.rotation.y = Math.sin(t * 0.13) * 0.16 + Math.sin(t * 0.037) * 0.08;
+      gpuCore.points.rotation.x = Math.sin(t * 0.09) * 0.055;
+      gpuCore.points.rotation.z = Math.sin(t * 0.057) * 0.032;
+      gpuCore.points.scale.setScalar(1 + state.attention * 0.07 + state.voiceEnergy * 0.045);
+      const pointerX = ((pointerField.x || cx) - cx) / Math.max(1, coreRadius * 1.2);
+      const pointerY = -(((pointerField.y || cy) - cy) / Math.max(1, coreRadius * 1.2));
+      gpuCore.material.uniforms.uTime.value = t;
+      gpuCore.material.uniforms.uMorph.value = gpuCore.morph;
+      gpuCore.material.uniforms.uEffect.value = gpuCore.effect;
+      gpuCore.material.uniforms.uEffectMix.value = gpuCore.effectMix;
+      gpuCore.material.uniforms.uVoice.value = state.voiceEnergy;
+      gpuCore.material.uniforms.uWake.value = state.attention;
+      gpuCore.material.uniforms.uPointer.value.set(pointerX, pointerY);
+      gpuCore.material.uniforms.uPointerPressure.value = pointerField.pressure;
+      gpuCore.renderer.render(gpuCore.scene, gpuCore.camera);
+    }
+
+    function drawDepth(time) {
+      dtx.clearRect(0, 0, width, height);
+      dtx.save();
+      dtx.globalCompositeOperation = "lighter";
+
+      dtx.filter = "blur(16px)";
+      for (const f of fogVolumes) {
+        const driftX = Math.sin(time * f.speed + f.phase) * 66;
+        const driftY = Math.cos(time * f.speed * 0.7 + f.phase) * 18;
+        const scale = focal / (focal + f.z);
+        const x = f.x + driftX * scale;
+        const y = f.y + driftY * scale;
+        const r = f.r * scale;
+        const gradient = dtx.createRadialGradient(x, y, 0, x, y, r);
+        gradient.addColorStop(0, `rgba(84, 251, 255, ${f.alpha})`);
+        gradient.addColorStop(0.42, `rgba(8, 213, 199, ${f.alpha * 0.5})`);
+        gradient.addColorStop(1, "rgba(84, 251, 255, 0)");
+        dtx.fillStyle = gradient;
+        dtx.beginPath();
+        dtx.arc(x, y, r, 0, TAU);
+        dtx.fill();
+      }
+      dtx.filter = "none";
+
+      for (const p of depthDust) {
+        const flow = fieldNoise(p.x * 0.003, p.y * 0.003, p.z * 0.003, time * 0.0002, p.phase);
+        const scale = focal / (focal + p.z);
+        const x = p.x + Math.sin(time * 0.00018 + p.phase) * 18 + flow.x * 24;
+        const y = p.y + Math.cos(time * 0.00016 + p.phase) * 11 + flow.y * 18;
+        const alpha = p.alpha * (0.58 + Math.sin(time * 0.001 + p.phase) * 0.33);
+        dtx.globalAlpha = clamp(alpha, 0.015, 0.28);
+        dtx.fillStyle = "#54fbff";
+        dtx.fillRect(x, y, Math.max(0.6, p.size * scale), Math.max(0.6, p.size * scale));
+      }
+
+      dtx.filter = "blur(4px)";
+      for (const b of foregroundBokeh) {
+        const x = b.x + Math.sin(time * b.speed + b.phase) * 48;
+        const y = b.y + Math.cos(time * b.speed * 0.8 + b.phase) * 28;
+        const radius = b.r * (1 + Math.sin(time * 0.0009 + b.phase) * 0.12);
+        const gradient = dtx.createRadialGradient(x, y, 0, x, y, radius);
+        gradient.addColorStop(0, `rgba(84, 251, 255, ${b.alpha})`);
+        gradient.addColorStop(0.4, `rgba(8, 213, 199, ${b.alpha * 0.52})`);
+        gradient.addColorStop(1, "rgba(84, 251, 255, 0)");
+        dtx.globalAlpha = 1;
+        dtx.fillStyle = gradient;
+        dtx.beginPath();
+        dtx.arc(x, y, radius, 0, TAU);
+        dtx.fill();
+      }
+      dtx.filter = "none";
+      dtx.globalAlpha = 1;
+      dtx.restore();
+    }
+
+    function drawEntity(time) {
+      etx.clearRect(0, 0, width, height);
+      etx.save();
+      etx.globalCompositeOperation = "lighter";
+
+      const t = time * 0.001;
+      const yaw = Math.sin(t * 0.17) * 0.23 + Math.sin(t * 0.053) * 0.1;
+      const pitch = Math.sin(t * 0.11 + 0.8) * 0.16;
+      const roll = Math.sin(t * 0.07) * 0.08;
+      const breath = 1 + Math.sin(t * 0.7 + Math.sin(t * 0.19) * 0.7) * 0.035;
+      const state = getInteractionState(time);
+      updateVoiceConsole(state);
+      updatePointerField();
+
+      const glow = etx.createRadialGradient(cx, cy, coreRadius * 0.1, cx, cy, coreRadius * 1.32);
+      glow.addColorStop(0, "rgba(84, 251, 255, 0.18)");
+      glow.addColorStop(0.28, "rgba(8, 213, 199, 0.11)");
+      glow.addColorStop(0.68, "rgba(34, 125, 255, 0.035)");
+      glow.addColorStop(1, "rgba(84, 251, 255, 0)");
+      etx.fillStyle = glow;
+      etx.beginPath();
+      etx.arc(cx, cy, coreRadius * 1.35, 0, TAU);
+      etx.fill();
+
+      if (gpuCore?.ready) {
+        etx.restore();
+        return;
+      }
+
+      drawParticleCloud(time, yaw, pitch, roll, breath, state);
+      drawWord(time, yaw, pitch, roll, state);
+      drawDialogueMorph(time, yaw, pitch, roll, breath, state);
+
+      etx.restore();
+    }
+
+    function drawParticleCloud(time, yaw, pitch, roll, breath, state) {
+      etx.fillStyle = "#54fbff";
+      const t = time * 0.001;
+      for (const p of entityParticles) {
+        const theta = p.theta + Math.sin(t * p.speed + p.phase) * 0.22 + Math.sin(t * 0.073 + p.phase * 2.1) * 0.12;
+        const phi = p.phi + Math.cos(t * p.speed * 0.8 + p.phase) * 0.14;
+        const sinPhi = Math.sin(phi);
+        const shape =
+          1 +
+          Math.sin(theta * 2.7 + t * 0.83 + p.phase) * 0.105 +
+          Math.cos(phi * 3.2 - t * 0.56 + p.phase * 0.6) * 0.085 +
+          Math.sin((theta + phi) * 4.1 + t * 0.23) * 0.035;
+        const facePull = state.attention * (p.family > 0.32 ? 0.64 : 0.34);
+        const base = coreRadius * p.shell * shape * breath * (1 - facePull * 0.18);
+        let x = Math.cos(theta) * sinPhi * base;
+        let y = Math.cos(phi) * base * 0.78;
+        let z = Math.sin(theta) * sinPhi * base * 0.82;
+        const headX = Math.cos(theta) * sinPhi * coreRadius * (0.48 + p.shell * 0.18);
+        const headY = Math.cos(phi) * coreRadius * (0.58 + p.shell * 0.16) - coreRadius * 0.02;
+        const headZ = Math.sin(theta) * sinPhi * coreRadius * (0.22 + p.shell * 0.32);
+        x += (headX - x) * facePull;
+        y += (headY - y) * facePull;
+        z += (headZ - z) * facePull;
+        const flow = fieldNoise(x / coreRadius, y / coreRadius, z / coreRadius, t * 0.4, p.phase);
+        x += flow.x * coreRadius * p.wobble * (0.18 + state.voiceEnergy * 0.08);
+        y += flow.y * coreRadius * p.wobble * (0.16 + state.voiceEnergy * 0.08);
+        z += flow.z * coreRadius * p.wobble * (0.22 + state.voiceEnergy * 0.1);
+        const rotated = rotate3d({ x, y, z }, yaw, pitch, roll);
+        const projected = project(rotated);
+        const front = clamp(1.12 - (rotated.z + coreRadius) / (coreRadius * 2.25), 0.18, 1.12);
+        const shimmer = 0.58 + Math.sin(t * (1.4 + p.speed) + p.phase) * 0.32 + Math.sin(t * 0.31 + p.phase * 3.1) * 0.1;
+        etx.globalAlpha = clamp(p.alpha * shimmer * front * (1 + state.attention * 0.28), 0.025, 0.98);
+        const size = p.size * projected.scale * (p.family > 0.86 ? 1.45 : 1) * (1 + state.attention * 0.18);
+        etx.fillRect(projected.x, projected.y, size, size);
+      }
+      etx.globalAlpha = 1;
+    }
+
+    function hash(value) {
+      return Math.sin(value * 12.9898) * 43758.5453 % 1;
+    }
+
+    function hash01(value) {
+      const raw = hash(value);
+      return raw < 0 ? raw + 1 : raw;
+    }
+
+    function drawParticleBead(ctx, x, y, size, alpha, warm = false) {
+      const core = Math.max(0.55, size);
+      const bloom = Math.max(1.4, core * 3.4);
+      const spark = Math.max(0.42, core * 0.46);
+      ctx.globalAlpha = clamp(alpha * 0.14, 0, 0.28);
+      ctx.fillStyle = warm ? "#ffd489" : "#54fbff";
+      ctx.fillRect(x - bloom * 0.5, y - bloom * 0.5, bloom, bloom);
+
+      ctx.globalAlpha = clamp(alpha, 0, 1);
+      ctx.fillStyle = warm ? "#fff1c4" : "#dfffff";
+      ctx.fillRect(x - core * 0.5, y - core * 0.5, core, core);
+
+      if (alpha > 0.45) {
+        ctx.globalAlpha = clamp(alpha * 0.2, 0, 0.28);
+        ctx.fillStyle = warm ? "#ffd489" : "#9fffff";
+        ctx.fillRect(x + core * 1.45, y - spark * 0.5, spark, spark);
+      }
+    }
+
+    function drawWord(time, yaw, pitch, roll, state) {
+      const t = time * 0.001;
+      const wordPresence = 1 - state.attention * 0.34;
+      etx.fillStyle = "#54fbff";
+      for (const p of wordParticles) {
+        const flow = fieldNoise(p.x / coreRadius, p.y / coreRadius, p.z / coreRadius, t * 0.55, p.phase);
+        const loosen = 1 + Math.sin(t * 0.5 + p.phase) * 0.012;
+        const point = rotate3d({
+          x: p.x * loosen + flow.x * p.looseness * 5.5,
+          y: p.y * loosen + flow.y * p.looseness * 3.6,
+          z: p.z + flow.z * 46 + Math.sin(t * 0.6 + p.phase) * 12
+        }, yaw * 0.36, pitch * 0.3, roll * 0.18);
+        const projected = project(point);
+        const shimmer = 0.68 + Math.sin(t * 2.0 + p.phase) * 0.28;
+        etx.globalAlpha = clamp(p.alpha * shimmer * wordPresence, 0.06, 1);
+        etx.fillStyle = p.hot ? "#ffd489" : "#54fbff";
+        etx.fillRect(projected.x, projected.y, p.size * projected.scale, p.size * projected.scale);
+        if (p.hot && state.attention < 0.8) {
+          etx.globalAlpha = 0.22;
+          etx.fillRect(projected.x - 5, projected.y, 11, 1);
+        }
+      }
+      etx.globalAlpha = 1;
+    }
+
+    function pulseShape(value) {
+      const clamped = clamp(value, 0, 1);
+      return clamped * clamped * (3 - 2 * clamped);
+    }
+
+    function drawDialogueMorph(time, yaw, pitch, roll, breath, state) {
+      const t = time * 0.001;
+      const idlePulse = (Math.sin(t * 0.34 - 0.45) + 1) * 0.5;
+      const idleFace = pulseShape((idlePulse - 0.48) / 0.32) * pulseShape((0.96 - idlePulse) / 0.22) * 0.18;
+      const idleWave = pulseShape((0.54 - idlePulse) / 0.34) * 0.12;
+      const faceAlpha = clamp(idleFace + state.attention * 0.92 + (state.speaking ? 0.24 : 0), 0, 1);
+      const waveAlpha = clamp(idleWave + state.voiceEnergy * 0.62 + (state.speaking ? 0.18 : 0), 0, 0.78);
+
+      if (waveAlpha > 0.01) {
+        for (const p of waveParticles) {
+          const wave =
+            Math.sin(p.u * TAU * 4.4 + t * (4.2 + state.voiceEnergy * 4.4) + p.phase * 0.28) * coreRadius * (0.034 + state.voiceEnergy * 0.058) +
+            Math.sin(p.u * TAU * 11.0 - t * (2.1 + state.voiceEnergy * 3) + p.band) * coreRadius * (0.012 + state.voiceEnergy * 0.03);
+          const envelope = Math.sin(p.u * Math.PI);
+          const point = rotate3d({
+            x: p.x * (0.78 + state.attention * 0.06),
+            y: (p.y + wave * envelope) * breath + coreRadius * 0.34,
+            z: p.z + Math.cos(p.u * TAU * 3 + t * 1.5 + p.phase) * (20 + state.voiceEnergy * 26)
+          }, yaw * 0.16, pitch * 0.12, roll * 0.08);
+          const projected = project(point);
+          const shimmer = 0.58 + Math.sin(t * 4.6 + p.phase + p.band) * 0.28;
+          drawParticleBead(
+            etx,
+            projected.x,
+            projected.y,
+            p.size * projected.scale * (0.82 + state.voiceEnergy * 0.4),
+            p.alpha * waveAlpha * shimmer * envelope,
+            p.band === 3 && Math.sin(t * 2.4 + p.phase) > 0.92
+          );
+        }
+      }
+
+      if (faceAlpha > 0.01) {
+        for (const p of faceParticles) {
+          const flow = fieldNoise(p.x / coreRadius, p.y / coreRadius, p.z / coreRadius, t * 0.42, p.phase);
+          const tremor = Math.sin(t * 1.3 + p.phase) * (2.2 + state.voiceEnergy * 7);
+          const scanBand = Math.sin((p.y / coreRadius) * 18 + t * 5.4);
+          const dataGlitch = scanBand > 0.82 ? 1.45 : 1;
+          const point = rotate3d({
+            x: p.x * breath + flow.x * p.looseness * (4.8 + state.voiceEnergy * 4) + (scanBand > 0.92 ? Math.sin(t * 12 + p.phase) * 4 : 0),
+            y: p.y * breath + flow.y * p.looseness * (3.6 + state.voiceEnergy * 3) + tremor,
+            z: p.z + flow.z * (34 + state.voiceEnergy * 18) + Math.sin(t * 0.62 + p.phase) * 10
+          }, yaw * 0.34, pitch * 0.26, roll * 0.14);
+          const projected = project(point);
+          const front = clamp(1.05 - (point.z + coreRadius) / (coreRadius * 2.2), 0.22, 1);
+          const shimmer = 0.78 + Math.sin(t * 2.2 + p.phase) * 0.24;
+          drawParticleBead(
+            etx,
+            projected.x,
+            projected.y,
+            p.size * projected.scale * (1.02 + state.attention * 0.22) * dataGlitch,
+            p.alpha * faceAlpha * shimmer * front * (1 + state.voiceEnergy * 0.34) * dataGlitch,
+            scanBand > 0.96
+          );
+        }
+      }
+
+      etx.globalAlpha = 1;
+    }
+
+    function drawProjectionParticleLine(x1, y1, x2, y2, count, alpha, time, salt = 0) {
+      for (let i = 0; i <= count; i++) {
+        const u = i / count;
+        const seed = salt * 1000 + i * 17;
+        if (hash01(seed + 3) < 0.1) {
+          continue;
+        }
+        const drift = Math.sin(time * 0.0015 + salt + i * 0.17) * 1.2;
+        const x = x1 + (x2 - x1) * u + (hash01(seed + 11) - 0.5) * 1.8;
+        const y = y1 + (y2 - y1) * u + (hash01(seed + 23) - 0.5) * 1.8 + drift;
+        const size = 0.45 + hash01(seed + 31) * 0.85;
+        const shimmer = 0.65 + Math.sin(time * 0.002 + seed) * 0.22;
+        drawParticleBead(ptx, x, y, size, alpha * shimmer, false);
+      }
+    }
+
+    function drawProjection(time) {
+      ptx.clearRect(0, 0, width, height);
+      ptx.save();
+      ptx.globalCompositeOperation = "lighter";
+      const t = time * 0.001;
+      const baseAlpha = 0.16 + Math.sin(t * 0.8) * 0.035;
+
+      const floorY = cy + coreRadius * 0.78;
+      const ellipseCount = 300;
+      for (let i = 0; i < ellipseCount; i++) {
+        const u = i / ellipseCount;
+        const angle = u * TAU + Math.sin(t * 0.11) * 0.03;
+        const x = cx + Math.cos(angle) * coreRadius * 0.94;
+        const y = floorY + Math.sin(angle) * coreRadius * 0.13;
+        if (hash01(i * 29) > 0.16) {
+          drawParticleBead(ptx, x, y, 0.55 + hash01(i * 17) * 0.55, baseAlpha * (0.5 + hash01(i * 37) * 0.56), false);
+        }
+      }
+
+      const left = cx - coreRadius * 1.14;
+      const right = cx + coreRadius * 1.14;
+      const top = cy - coreRadius * 0.48;
+      drawProjectionParticleLine(left, top + 40, left - 80, top + 2, 60, 0.15, time, 1);
+      drawProjectionParticleLine(right, top + 34, right + 72, top - 10, 58, 0.14, time, 2);
+      drawProjectionParticleLine(cx - coreRadius * 0.38, floorY + 18, cx - coreRadius * 0.82, floorY + 52, 64, 0.12, time, 3);
+      drawProjectionParticleLine(cx + coreRadius * 0.42, floorY + 14, cx + coreRadius * 0.86, floorY + 48, 64, 0.12, time, 4);
+
+      ptx.font = "11px Consolas, monospace";
+      ptx.fillStyle = "rgba(166, 223, 231, 0.52)";
+      ptx.fillText("FIELD BREATH 0.87", Math.max(26, left - 166), top - 2);
+      ptx.fillText("TURBULENCE ACTIVE", Math.min(width - 176, right + 82), top - 14);
+      ptx.fillText("DEPTH LAYERS 7", Math.max(26, left - 118), floorY + 58);
+      ptx.fillText("VOICE: IDLE", Math.min(width - 112, right + 64), floorY + 54);
+      ptx.restore();
+    }
+
+    function frame(time = 0) {
+      const t = reducedMotion ? 1600 : time;
+      updatePanels(t);
+      const state = getInteractionState(t);
+      drawDepth(t);
+      drawEntity(t);
+      drawGpuCore(t, state);
+      drawProjection(t);
+      requestAnimationFrame(frame);
+    }
+
+    function wakeJarvis() {
+      manualWakeUntil = performance.now() + 6200;
+      if (!autoListenEnabled && !recognitionActive && !recognitionStarting) {
+        startContinuousListening();
+      }
+    }
+
+    window.addEventListener("resize", resize);
+    window.addEventListener("pointerdown", wakeJarvis);
+    window.addEventListener("pointermove", (event) => {
+      pointerField.tx = event.clientX;
+      pointerField.ty = event.clientY;
+      pointerField.active = true;
+    });
+    window.addEventListener("pointerleave", () => {
+      pointerField.active = false;
+    });
+    window.addEventListener("blur", () => {
+      pointerField.active = false;
+    });
+    window.addEventListener("keydown", (event) => {
+      if (event.code === "Space" || event.key.toLowerCase() === "j") {
+        wakeJarvis();
+      }
+    });
+    talkForm?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const message = talkInput?.value || "";
+      if (talkInput) {
+        talkInput.value = "";
+      }
+      sendMessage(message);
+    });
+    listenButton?.addEventListener("click", toggleListening);
+    resize();
+    initGpuCore();
+    loadWeather();
+    setupSpeechRecognition();
+    startContinuousListening();
+    frame();
+  </script>
+</body>
+</html>

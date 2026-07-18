@@ -1,0 +1,16 @@
+{
+  "provider": "deepseek",
+  "apiKey": "YOUR_DEEPSEEK_API_KEY",
+  "model": "deepseek-v4-pro",
+  "voice": {
+    "voiceProvider": "aliyun",
+    "aliyunApiKey": "YOUR_DASHSCOPE_API_KEY"
+  },
+  "tts": {
+    "ttsProvider": "jarvis",
+    "ttsVoiceId": "jarvis-high"
+  },
+  "hotspots": {
+    "refreshMinutes": 30
+  }
+}

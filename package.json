@@ -1,0 +1,138 @@
+{
+  "name": "jarvis-local-agent",
+  "productName": "Jarvis",
+  "version": "0.1.0",
+  "description": "A local Jarvis desktop Agent with its own copied-and-modified core runtime.",
+  "author": "Jarvis Project",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "start": "npm run build:ui && node scripts/start-electron.cjs",
+    "start:desktop": "npm run build:ui && node scripts/start-electron.cjs",
+    "start:web": "npm run build:ui && node src/core/index.js",
+    "build:ui": "vite build --config vite.jarvis.config.mjs",
+    "check": "npm run build:ui && node --check electron/main.cjs && node --check electron/preload.cjs && node --check src/core/index.js && node --check src/core/api.js && node --check src/core/grok-build.js && node --check src/core/capabilities/tools/ui.js && node --check src/core/docs.js && node src/core/test-tool-router.js && node scripts/probe-current-tool-surface.cjs && node scripts/probe-news-ticker.cjs && node scripts/probe-engineering-routing.cjs && node scripts/probe-tts-echo-guards.cjs && node scripts/probe-wake-sensitivity.cjs",
+    "shortcut:desktop": "node scripts/install-desktop-shortcut.cjs",
+    "probe:core": "node scripts/probe-core-runtime.cjs",
+    "probe:desktop": "node scripts/probe-desktop-e2e.cjs",
+    "probe:desktop-close": "node scripts/probe-desktop-close.cjs",
+    "probe:wake-sequence": "node scripts/probe-wake-sequence.cjs",
+    "probe:wake-sequence:packaged": "set JARVIS_PROBE_PACKAGED=1&& node scripts/probe-wake-sequence.cjs",
+    "probe:wake-sensitivity": "node scripts/probe-wake-sensitivity.cjs",
+    "probe:api-hardening": "node scripts/probe-server-launcher.cjs scripts/probe-api-hardening.cjs",
+    "probe:single-product": "node scripts/probe-single-product.cjs",
+    "probe:layout": "node scripts/probe-layout.cjs",
+    "probe:acui": "node scripts/probe-acui-workbench.cjs",
+    "probe:tool-surface": "node scripts/probe-current-tool-surface.cjs",
+    "probe:turn-lifecycle": "node scripts/probe-turn-lifecycle.cjs",
+    "probe:desktop-shortcut": "node scripts/probe-desktop-shortcut.cjs",
+    "probe:grok-build": "node scripts/probe-grok-build-integration.cjs",
+    "probe:readiness": "node scripts/probe-capability-readiness.cjs",
+    "probe:readiness-endpoint": "node scripts/probe-readiness-endpoint.cjs",
+    "probe:message-gate": "node scripts/probe-message-activation-gate.cjs",
+    "probe:config-repair": "node scripts/probe-config-repair.cjs",
+    "probe:product-quality": "node scripts/probe-product-quality-launcher.cjs",
+    "probe:tool-receipts": "node scripts/probe-tool-receipts.cjs",
+    "probe:work-modules": "node scripts/probe-work-modules.cjs",
+    "probe:ui-config-state": "node scripts/probe-ui-config-state.cjs",
+    "probe:key-intake": "node scripts/probe-key-intake.cjs",
+    "probe:asr-route": "node scripts/probe-asr-routing.cjs",
+    "probe:asr-real-audio": "node scripts/probe-asr-real-audio.cjs",
+    "monitor:asr-until": "node scripts/monitor-asr-until.cjs",
+    "probe:asr-local-defaults": "node scripts/probe-asr-local-defaults.cjs",
+    "probe:asr-start": "node scripts/probe-asr-start.cjs",
+    "probe:asr-proxy-start": "node scripts/probe-asr-proxy-start.cjs",
+    "probe:web-search": "node scripts/probe-web-search-fallback.cjs",
+    "probe:vector-memory": "node scripts/probe-vector-memory.cjs",
+    "probe:system-tts": "node scripts/probe-system-tts-provider.cjs",
+    "voice:install:jarvis": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-jarvis-voice.ps1",
+    "probe:jarvis-tts": "node scripts/probe-jarvis-tts.cjs",
+    "probe:tts-backend-fallback": "node scripts/probe-tts-backend-fallback.cjs",
+    "probe:tts-echo-guards": "node scripts/probe-tts-echo-guards.cjs",
+    "probe:tts-repeat": "node scripts/probe-tts-repeat.cjs",
+    "rebuild:native": "node ./node_modules/electron-builder/cli.js install-app-deps",
+    "postinstall": "node ./node_modules/electron-builder/cli.js install-app-deps",
+    "pack": "npm run check && node scripts/build.cjs --dir",
+    "dist": "npm run check && node scripts/build.cjs --win nsis"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.8.0",
+    "lucide-react": "^0.542.0",
+    "motion": "^12.40.0",
+    "ogl": "^1.0.11",
+    "openai": "^6.34.0",
+    "qrcode-terminal": "^0.12.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "wechat-ilink-client": "^0.1.0",
+    "ws": "^8.20.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.3",
+    "electron": "^42.7.0",
+    "electron-builder": "^26.15.3",
+    "vite": "^8.1.5"
+  },
+  "build": {
+    "appId": "local.jarvis.agent",
+    "productName": "Jarvis",
+    "artifactName": "${productName}-Setup-${version}.${ext}",
+    "asar": true,
+    "electronDist": "node_modules/electron/dist",
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**",
+      ".venv/**",
+      "models/**",
+      "src/core/voice/**"
+    ],
+    "files": [
+      "electron/**/*",
+      ".venv/**/*",
+      "models/**/*",
+      "src/**/*",
+      "skills/**/*",
+      "sandbox/**/*",
+      "systemPrompt.html",
+      "turn-trace.html",
+      "build/**/*",
+      "package.json",
+      "!src/core/ui/brain-ui/**/*",
+      "!src/ui/jarvis-react/**/*",
+      "!src/voice/**/*",
+      "!src/**/test-*.js",
+      "!src/**/*-dev-server.js",
+      "!data/**/*",
+      "!dist/**/*"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.cjs"
+    },
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": true,
+      "signExecutable": false,
+      "verifyUpdateCodeSignature": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Jarvis",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": false
+    }
+  }
+}

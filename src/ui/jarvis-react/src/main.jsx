@@ -1,0 +1,2540 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createRoot } from "react-dom/client";
+import { AnimatePresence, motion } from "motion/react";
+import {
+  Activity,
+  CheckCircle2,
+  CircleAlert,
+  CloudSun,
+  Cpu,
+  Database,
+  FileText,
+  KeyRound,
+  GitCompare,
+  ListTodo,
+  Loader2,
+  Mic,
+  MicOff,
+  Music2,
+  Newspaper,
+  Pause,
+  Play,
+  Radio,
+  RefreshCw,
+  Send,
+  Settings2,
+  ShieldCheck,
+  Square,
+  TerminalSquare,
+  Thermometer,
+  Volume2,
+  VolumeX,
+  Wind,
+  Wrench,
+  X,
+  Zap
+} from "lucide-react";
+import { initVoicePanel } from "../../voice/voice-panel.js";
+import { attachJarvisAudioGraph, resumeJarvisAudioContext } from "../../audio/tts-fx.js";
+import { applyOutputSink, initAudioOutputRouting } from "../../audio/audio-output.js";
+import { playWakeTransitionSfx } from "../../audio/wake-sfx.js";
+import { isAmbientMusicEnabled, setAmbientMusicDucked, startAmbientMusic, stopAmbientMusic } from "../../audio/ambient-music.js";
+import "./styles.css";
+
+const DEFAULT_API = "http://127.0.0.1:3721";
+const VOICE_PROVIDER_KEY = "jarvis-voice-provider";
+const USER_ID = "ID:000001";
+const SELF_ECHO_GUARD_MS = 8_000;
+// Metallic TTS has a long echo tail; keep the mic suspended until it has decayed.
+// Only suppress immediate duplicate ASR packets; a ten-minute window mistakes normal conversation for echo.
+const VOICE_REPEAT_GUARD_MS = 8_000;
+const VOICE_POST_TTS_BLOCK_MS = 2_000;
+const WAKE_LISTEN_DELAY_MS = 1000;
+const WORKBENCH_ENTER_MS = 560;
+const WAKE_GREETING_LEAD_MS = 1000;
+const API_TIMEOUT_MS = 10_000;
+const TTS_FETCH_TIMEOUT_MS = 50_000;
+const TTS_PLAYBACK_TIMEOUT_MS = 150_000;
+const SPEECH_CACHE_LIMIT = 6;
+const ACUI_CARD_LIMIT = 4;
+const ACUI_STRING_LIMIT = 800;
+const ACUI_RECONNECT_MAX_MS = 8_000;
+
+function isAsrEchoNoise(value) {
+  const normalized = normalizeEchoText(value);
+  return /chinese(?:light|like|lite|right)/i.test(normalized);
+}
+const WAKE_RESTART_MS = 360;
+const JARVIS_TTS_VOICE_ID = "jarvis-high";
+
+const VISUALS = {
+  idle: "./visuals/idle.webm",
+  listening: "./visuals/listening.webm",
+  thinking: "./visuals/thinking.webm",
+  speaking: "./visuals/speaking.webm",
+  alert: "./visuals/alert.webm"
+};
+
+const LINKS = [
+  { label: "控制台", action: "settings", icon: TerminalSquare },
+  { label: "工程台", action: "engineering", icon: Wrench },
+  { label: "回合记录", path: "/turn-trace", icon: FileText },
+  { label: "记忆库", path: "/memories", icon: Database },
+  { label: "系统词", path: "/systemPrompt.html", icon: Cpu }
+];
+
+function cls(...parts) {
+  return parts.filter(Boolean).join(" ");
+}
+
+function cleanText(value) {
+  return String(value || "")
+    .replace(/\[CLEAR_TASK\]/g, "")
+    .replace(/\[SET_TASK:[\s\S]*?\]/g, "")
+    .replace(/\[RECALL:[\s\S]*?\]/g, "")
+    .trim();
+}
+
+function cleanStreamChunk(value) {
+  return String(value || "")
+    .replace(/\[CLEAR_TASK\]/g, "")
+    .replace(/\[SET_TASK:[\s\S]*?\]/g, "")
+    .replace(/\[RECALL:[\s\S]*?\]/g, "");
+}
+
+function plainSpeechText(value) {
+  return cleanText(value)
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/`(.+?)`/g, "$1")
+    .replace(/#{1,6}\s+/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/!\[[^\]]*]\([^)]+\)/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeEchoText(value) {
+  return plainSpeechText(value)
+    .toLowerCase()
+    .replace(/[\s"'`~!@#$%^&*()_+\-=[\]{};:,.<>/?\\|，。！？、；：“”‘’（）【】《》…—]/g, "");
+}
+
+const CHINESE_TRANSLATION_MARKER = "[中文翻译]";
+const WAKE_GREETING_SPEECH = "I wake up now.";
+const WAKE_GREETING_VARIANTS = [
+  ["I wake up now.", "我现在醒来了。"],
+  ["Hello boss. Jarvis is online.", "你好老板，贾维斯已经在线。"],
+  ["Good afternoon, boss. All systems are standing by.", "下午好老板，所有系统正在待命。"],
+];
+function getWakeGreeting() {
+  const [english, chinese] = WAKE_GREETING_VARIANTS[Math.floor(Math.random() * WAKE_GREETING_VARIANTS.length)];
+  return `${english}\n\n${CHINESE_TRANSLATION_MARKER}\n${chinese}`;
+}
+const READY_SELF_CHECK_SPEECH = "DeepSeek is connected. Voice recognition check passed. System self-check is complete. I am ready and awaiting your instructions.";
+const WAKE_GREETING = `${WAKE_GREETING_SPEECH}\n\n${CHINESE_TRANSLATION_MARKER}\n我现在醒来了。`;
+
+function buildSelfCheckReply(readiness) {
+  const capabilities = readiness?.capabilities || {};
+  const allReady = capabilities.deepseek?.ready && capabilities.tts?.ready && capabilities.asr?.ready;
+  const english = allReady
+    ? READY_SELF_CHECK_SPEECH
+    : `DeepSeek ${capabilities.deepseek?.ready ? "is connected" : "needs attention"}. Voice recognition ${capabilities.asr?.ready ? "check passed" : "needs attention"}. Jarvis voice ${capabilities.tts?.ready ? "check passed" : "needs attention"}. System self-check is complete.`;
+  const chinese = allReady
+    ? "DeepSeek 已接入，语音识别检查通过，系统自检完成，我已经准备好听候您的指令了。"
+    : `DeepSeek ${capabilities.deepseek?.ready ? "已接入" : "需要关注"}，语音识别${capabilities.asr?.ready ? "检查通过" : "需要关注"}，贾维斯语音${capabilities.tts?.ready ? "检查通过" : "需要关注"}，系统自检完成。`;
+  return `${english}\n\n${CHINESE_TRANSLATION_MARKER}\n${chinese}`;
+}
+
+async function buildWakeSituation(api, readiness) {
+  const now = new Date();
+  const dateLine = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const timeLine = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  let newsLine = "No priority AI headline is available right now.";
+  let taskLine = "There are no active engineering tasks.";
+  try {
+    const [newsResponse, taskResponse] = await Promise.all([
+      fetch(`${api}/ai-news`),
+      fetch(`${api}/grok-build/tasks`),
+    ]);
+    const news = await newsResponse.json();
+    const tasks = await taskResponse.json();
+    const item = Array.isArray(news?.items) ? news.items[0] : null;
+    if (item?.title) newsLine = `The latest AI HOT headline is: ${item.title}.`;
+    const task = tasks?.task || tasks?.data?.task;
+    if (task?.prompt) taskLine = task.status === "completed" ? `The latest engineering task is complete: ${task.prompt}.` : `An engineering task is ${task.status || "in progress"}: ${task.prompt}.`;
+  } catch {}
+  const ready = readiness?.capabilities?.deepseek?.ready && readiness?.capabilities?.asr?.ready && readiness?.capabilities?.tts?.ready;
+  const healthLine = ready ? "Core services are healthy." : "Some core services need attention.";
+  return `It is ${timeLine} on ${dateLine}. ${healthLine} ${taskLine} ${newsLine} I am ready to continue with you.`;
+}
+
+function splitBilingualReply(value) {
+  const text = String(value || "").trim();
+  const markerIndex = text.indexOf(CHINESE_TRANSLATION_MARKER);
+  if (markerIndex < 0) return { original: text, translation: "" };
+  return {
+    original: text.slice(0, markerIndex).trim(),
+    translation: text.slice(markerIndex + CHINESE_TRANSLATION_MARKER.length).trim()
+  };
+}
+
+function spokenReplyText(value) {
+  return splitBilingualReply(value).original;
+}
+
+function BilingualMessageText({ content, compact = false }) {
+  const { original, translation } = splitBilingualReply(content);
+  return (
+    <>
+      <p>{original}</p>
+      {translation ? (
+        <p className={cls("message-translation", compact && "compact")}>
+          <span>中文</span>
+          {translation}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+function currentSegment(value) {
+  const text = plainSpeechText(value);
+  const parts = text.split(/[。！？!?；;\r\n]+/).map((item) => item.trim()).filter(Boolean);
+  return parts[parts.length - 1] || text;
+}
+
+function echoTextOverlaps(candidate, source) {
+  const left = normalizeEchoText(candidate);
+  const right = normalizeEchoText(source);
+  if (!left || !right) return false;
+  if (left === right) return true;
+  if (Math.min(left.length, right.length) < 4) return false;
+  return left.includes(right) || right.includes(left);
+}
+
+function isWakePhrase(value, { loose = false } = {}) {
+  const compact = normalizeEchoText(value);
+  if (!compact) return false;
+  const hasAny = (items) => items.some((item) => compact.includes(normalizeEchoText(item)));
+  const jarvisTokens = [
+    "jarvis", "javis", "jarviss", "jervis", "travis",
+    "贾维斯", "贾维思", "贾威斯", "贾伟思", "加维斯", "嘉维斯", "佳维斯", "家维斯", "扎维斯",
+    "杰维斯", "杰维思", "贾维丝", "贾维司", "佳伟斯", "家伟斯", "扎维丝", "扎维思", "扎维司", "扎维", "炸维斯", "查维斯",
+    "贾维", "加维", "嘉维", "小贾", "海贾"
+  ];
+  const wakePrefixes = ["hi", "hey", "hello", "嗨", "嘿", "哈", "你好"];
+  const commonMishears = ["john", "jon", "讲", "江", "将"];
+  if (hasAny(jarvisTokens)) return true;
+  if (hasAny(wakePrefixes) && hasAny(commonMishears)) return true;
+  return loose && /(?:jarv|jerv|trav|贾维|扎维|杰维|加维|嘉维)/i.test(compact);
+}
+
+function isVoiceChannel(channel = "") {
+  return /voice|语音|VOICE/i.test(String(channel || ""));
+}
+
+function engineeringPrompt(value) {
+  const text = String(value || "").trim();
+  const matched = text.match(/^(?:工程模式|工程任务|让工程代理|用\s*grok\s*build|让\s*grok)(?:[，,:：\s]+)([\s\S]+)$/i);
+  return matched?.[1]?.trim() || "";
+}
+
+function inferredEngineeringPrompt(value) {
+  const text = String(value || "").trim();
+  if (!text || engineeringPrompt(text)) return engineeringPrompt(text);
+  if (/(?:用|让|调用|交给).{0,8}(?:agent|代理|grok)/i.test(text)) return text;
+  const asksForWork = /(?:帮我|请你|替我|给我|能不能|可以).{0,10}(?:创建|新建|修改|编辑|实现|修复|调试|运行|检查|安装|删除|读取|整理|生成|写|改)/i.test(text)
+    || /(?:create|build|write|edit|fix|debug|run|install|delete|read|update|generate|implement)\b/i.test(text);
+  const hasWorkspaceTarget = /(?:文件|代码|项目|工程|脚本|程序|网页|目录|文件夹|仓库|电脑|系统|package\.json|file|code|project|repo|folder|script|app|computer|system)/i.test(text);
+  if (!asksForWork || !hasWorkspaceTarget) return "";
+  return text;
+}
+
+function safeExternalUrl(value) {
+  try {
+    const parsed = new URL(String(value || "").trim());
+    return /^https?:$/.test(parsed.protocol) ? parsed.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function isStaleDiagnosticMessage(row) {
+  const text = String(row?.content || "");
+  const from = String(row?.from_id || row?.from || "");
+  const to = String(row?.to_id || row?.to || "");
+  return /geoResult is not defined|ReferenceError/i.test(text)
+    || /probe-dialogue/i.test(from)
+    || /probe-dialogue/i.test(to)
+    || /核心对话链路测试|链路测试|请只回复：对话正常/.test(text);
+}
+
+function normalizeMessages(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .filter((row) => !isStaleDiagnosticMessage(row))
+    .map((row) => ({
+      id: row.id ?? `${row.role}-${row.timestamp}-${row.content}`,
+      role: row.role === "jarvis" || row.role === "assistant" ? "jarvis" : row.role === "user" ? "user" : "system",
+      content: cleanText(row.content),
+      channel: row.channel || "",
+      timestamp: row.timestamp || ""
+    }))
+    .filter((row) => row.content);
+}
+
+async function readJson(response) {
+  const text = await response.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    return { ok: false, error: text || response.statusText };
+  }
+}
+
+function formatTime(timestamp) {
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+}
+
+function stateLabel(state) {
+  if (state === "thinking") return "思考";
+  if (state === "listening") return "聆听";
+  if (state === "speaking") return "回应";
+  if (state === "alert") return "待处理";
+  return "待命";
+}
+
+function useClock() {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return {
+    time: now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
+    date: now.toLocaleDateString("en-US", { weekday: "long", day: "2-digit", month: "long" }).toUpperCase()
+  };
+}
+
+function StatusPill({ ok, label, detail, compact = false }) {
+  return (
+    <div className={cls("status-pill", ok ? "ok" : "warn", compact && "compact")}>
+      {ok ? <CheckCircle2 size={14} /> : <CircleAlert size={14} />}
+      <span>{label}</span>
+      {detail ? <em>{detail}</em> : null}
+    </div>
+  );
+}
+
+function SignalTile({ label, code, value, detail, tone = "neutral", icon: Icon = Activity }) {
+  return (
+    <div className={cls("signal-tile", `tone-${tone}`)}>
+      <Icon size={17} aria-hidden="true" />
+      <div>
+        <span>{label} {code ? <small>{code}</small> : null}</span>
+        {detail ? <em>{detail}</em> : null}
+      </div>
+      <strong>{value}</strong>
+      <i aria-hidden="true" />
+    </div>
+  );
+}
+
+const NEWS_PLATFORM_LABELS = {
+  douyin: "抖音",
+  xiaohongshu: "小红书",
+  wechat: "微信热点",
+  weibo: "微博",
+};
+
+function NewsTicker({ api }) {
+  const [items, setItems] = useState([]);
+  const [fetchedAt, setFetchedAt] = useState("");
+  const [error, setError] = useState("");
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const loadingRef = useRef(false);
+
+  const load = useCallback(async () => {
+    if (!api || loadingRef.current) return;
+    loadingRef.current = true;
+    setLoading(true);
+    try {
+      const response = await fetch(`${api}/ai-news`);
+      const payload = await readJson(response);
+      if (!response.ok || payload.ok === false) throw new Error(payload.error || "资讯源暂无数据");
+      const next = (Array.isArray(payload.items) ? payload.items : []).map((row, rowIndex) => ({
+        id: row.id || `ai-hot-${rowIndex}`,
+        label: String(row.source || "AI HOT").replace(/[（(].*$/, "").trim(),
+        rank: rowIndex + 1,
+        title: String(row.title || "").trim(),
+        heat: Number.isFinite(Number(row.score)) ? String(row.score) : "",
+        publishedAt: row.publishedAt || "",
+        url: safeExternalUrl(row.url),
+      })).filter((row) => row.title && row.url);
+      setItems(next);
+      setFetchedAt(payload.fetchedAt || new Date().toISOString());
+      setError("");
+      setIndex((current) => next.length ? current % next.length : 0);
+    } catch (loadError) {
+      setError(loadError.message || "资讯源暂无数据");
+    } finally {
+      loadingRef.current = false;
+      setLoading(false);
+    }
+  }, [api]);
+
+  useEffect(() => {
+    load();
+    const refreshTimer = window.setInterval(load, 5 * 60 * 1000);
+    return () => window.clearInterval(refreshTimer);
+  }, [load]);
+
+  useEffect(() => {
+    if (paused || items.length < 2) return undefined;
+    const timer = window.setInterval(() => setIndex((current) => (current + 1) % items.length), 4200);
+    return () => window.clearInterval(timer);
+  }, [items.length, paused]);
+
+  const visibleItems = useMemo(() => {
+    if (!items.length) return [];
+    return Array.from({ length: Math.min(3, items.length) }, (_, offset) => items[(index + offset) % items.length]);
+  }, [index, items]);
+  const updated = fetchedAt ? new Date(fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }) : "--:--";
+
+  return (
+    <section className={cls("news-ticker", !items.length && "is-empty")} aria-label="AI Hot 实时资讯">
+      <header className="news-ticker-head">
+        <div><Newspaper size={14} /><span>AI 新闻</span><small>AI NEWS</small></div>
+        <div className="news-ticker-actions">
+          <small>{error ? "OFFLINE" : updated}</small>
+          <button type="button" className="news-icon" onClick={() => setPaused((value) => !value)} aria-label={paused ? "继续滚动资讯" : "暂停滚动资讯"} title={paused ? "继续滚动资讯" : "暂停滚动资讯"}>
+            {paused ? <Play size={13} /> : <Pause size={13} />}
+          </button>
+          <button type="button" className="news-icon" onClick={load} disabled={loading} aria-label="刷新资讯" title="刷新资讯"><RefreshCw className={cls(loading && "spin")} size={13} /></button>
+        </div>
+      </header>
+      {visibleItems.length ? (
+        <div className="news-ticker-list">
+          {visibleItems.map((item, visibleIndex) => (
+            <motion.a
+              className="news-ticker-item"
+              key={item.id}
+              href={item.url || undefined}
+              target={item.url ? "_blank" : undefined}
+              rel={item.url ? "noopener noreferrer" : undefined}
+              aria-label={item.url ? `打开${item.label}：${item.title}` : undefined}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2, delay: visibleIndex * 0.03 }}
+            >
+              <div className="news-ticker-meta"><b>{String(item.rank).padStart(2, "0")}</b><span>{item.label}</span>{item.heat ? <em>{item.heat}</em> : null}</div>
+              <p>{item.title}</p>
+            </motion.a>
+          ))}
+        </div>
+      ) : (
+        <div className="news-ticker-empty"><Newspaper size={18} /><span>{error || "正在连接资讯源"}</span></div>
+      )}
+    </section>
+  );
+}
+
+function IntelligenceRail({ signals, api, grokStatus, onEngineering }) {
+  const task = grokStatus?.task || null;
+  const running = ["starting", "running", "waiting_permission"].includes(task?.status);
+  const taskState = task?.status === "completed"
+    ? "已完成"
+    : task?.status === "waiting_permission"
+      ? "等待确认"
+      : running
+        ? "执行中"
+        : grokStatus?.available
+          ? "待命"
+          : "未接入";
+  const taskTitle = task?.prompt || (grokStatus?.available ? "DeepSeek 工程代理已就绪" : "工程代理当前不可用");
+
+  return (
+    <aside className="capability-strip intelligence-rail" aria-label="能力与资讯状态">
+      <section className="rail-section capability-status">
+        <header className="rail-heading"><span>能力状态</span><small>CAPABILITY STATUS</small></header>
+        <div className="capability-list">
+          {signals.map((signal) => <SignalTile key={signal.label} {...signal} />)}
+        </div>
+      </section>
+      <button className={cls("engineering-summary", running && "is-running")} type="button" onClick={onEngineering}>
+        <header className="rail-heading">
+          <span>工程任务</span><small>ENGINEERING MODE</small>
+          <b>{taskState}</b>
+        </header>
+        <div className="engineering-summary-body">
+          <small>{task ? "当前任务 / ACTIVE TASK" : "工程代理 / BUILD AGENT"}</small>
+          <strong>{taskTitle}</strong>
+          <span className="engineering-progress" aria-hidden="true"><i /></span>
+        </div>
+      </button>
+      <NewsTicker api={api} />
+    </aside>
+  );
+}
+
+function JarvisWorkbench({ visualState, interfaceMode, readiness, status, activation, connection, grokReady, audioLevel = 0 }) {
+  const caps = readiness?.capabilities || {};
+  const state = visualState === "speaking" ? "TRANSMITTING" : visualState === "thinking" ? "PROCESSING" : visualState === "listening" ? "LISTENING" : "STANDBY";
+  const model = activation?.model || activation?.provider || "未配置";
+  const memoryCount = status?.memory_count ?? caps.memory?.count ?? "--";
+  const queue = status?.queue || {};
+  const checks = [
+    ["核心", "CORE", caps.deepseek?.ready],
+    ["语音", "VOICE", caps.tts?.ready],
+    ["识别", "ASR", caps.asr?.ready],
+    ["记忆", "MEMORY", caps.memory?.ready],
+    ["工程", "BUILD", grokReady],
+    ["监听", "SCAN", visualState === "listening"],
+  ];
+  return (
+    <section className={cls("jarvis-workbench", `workbench-${visualState}`, `workbench-${interfaceMode}`)} aria-label="Jarvis system workbench">
+      <div className="workbench-grid" aria-hidden="true" />
+      <div className="workbench-header">
+        <span>核心智能场域 <small>INTELLIGENCE FIELD</small></span>
+        <strong>{state}</strong>
+      </div>
+      <div className="core-readouts core-readouts-left">
+        <span><small>核心状态 / CORE STATUS</small><strong>{caps.deepseek?.ready ? "ONLINE" : "CHECK"}</strong></span>
+        <span><small>模型 / MODEL</small><strong>{model}</strong></span>
+        <span><small>语音 / VOICE</small><strong>{caps.asr?.provider || "--"}</strong></span>
+      </div>
+      <div className="core-readouts core-readouts-right">
+        <span><small>记忆 / MEMORY</small><strong>{memoryCount}</strong></span>
+        <span><small>队列 / QUEUE</small><strong>{queue.user ?? 0} / {queue.background ?? 0}</strong></span>
+        <span><small>链路 / LINK</small><strong>{connection?.state === "online" ? "ONLINE" : "OFFLINE"}</strong></span>
+      </div>
+      <div className="workbench-diagnostics">
+        <div className="diagnostic-block signal-block">
+          <span>实时语音波形 / LIVE AUDIO</span>
+          <div className="signal-wave" aria-hidden="true">{Array.from({ length: 54 }, (_, index) => { const variation = 0.42 + ((index * 17) % 31) / 100; return <i key={index} style={{ "--bar": `${Math.max(5, Math.round((8 + audioLevel * 92 * variation)))}%` }} />; })}</div>
+          <div className="signal-meta"><em>PCM / LOCAL</em><b>{visualState === "speaking" ? "ACTIVE" : "QUIET"}</b></div>
+        </div>
+      </div>
+      <div className="workbench-status-strip">
+        {checks.map(([label, code, ready]) => (
+          <span className={ready ? "ready" : "pending"} key={code}><b>{label}</b><small>{code}</small><i /></span>
+        ))}
+      </div>
+      <div className="workbench-footer"><span>LOCAL 127.0.0.1</span><span>MODE {interfaceMode.toUpperCase()}</span><span>SCAN {state}</span></div>
+    </section>
+  );
+}
+
+function MessageLine({ message, live }) {
+  const isUser = message.role === "user";
+  const isSystem = message.role === "system";
+  const bilingual = !isUser && !isSystem ? splitBilingualReply(message.content) : null;
+  return (
+    <motion.article
+      className={cls("message-line", isUser && "user", isSystem && "system", live && "live")}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
+    >
+      <div className="message-origin">
+        <span>{isUser ? "你" : isSystem ? "系统" : "Jarvis"}</span>
+        {message.channel ? <small>{message.channel}</small> : null}
+        {message.timestamp ? <time>{formatTime(message.timestamp)}</time> : null}
+      </div>
+      {bilingual ? <BilingualMessageText content={message.content} /> : <p>{message.content}</p>}
+    </motion.article>
+  );
+}
+
+function ModuleLink({ item, api, onSettings, onEngineering, active }) {
+  const Icon = item.icon;
+  const open = () => {
+    if (item.action === "settings") onSettings?.();
+    else if (item.action === "engineering") onEngineering?.();
+    else window.open(`${api}${item.path}`, "_blank", "noopener,noreferrer");
+  };
+  return (
+    <button className={cls("module-link", active && "active")} type="button" onClick={open} aria-pressed={item.action === "engineering" ? !!active : undefined}>
+      <Icon size={16} />
+      <span>{item.label}</span>
+    </button>
+  );
+}
+
+function EngineeringConsole({ status, open, onClose, onRun, onCancel, onPermission }) {
+  const [prompt, setPrompt] = useState("");
+  const [view, setView] = useState("conversation");
+  const [history, setHistory] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("jarvis-engineering-history") || "[]"); } catch { return []; }
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const outputRef = useRef(null);
+  const task = status?.task || null;
+  const isRunning = ["starting", "running", "waiting_permission"].includes(task?.status);
+  const workspace = task?.cwd || status?.defaultCwd || "H:\\Jarvis\\runtime\\jarvis\\sandbox";
+  const quickActions = [
+    { label: "读取项目结构", prompt: "读取当前工作区，列出项目结构并说明入口文件" },
+    { label: "检查项目", prompt: "检查当前项目的构建、依赖和明显错误，给出可执行修复" },
+    { label: "运行测试", prompt: "运行当前项目已有的检查或测试命令，汇总失败项" },
+    { label: "查看变更", prompt: "检查当前工作区的版本控制状态和未提交变更，按文件汇总" },
+  ];
+  const labels = {
+    starting: "正在启动",
+    running: "正在执行",
+    waiting_permission: "等待确认",
+    completed: "已完成",
+    error: "执行失败",
+    cancelled: "已取消",
+  };
+
+  useEffect(() => {
+    if (!open || !outputRef.current) return;
+    outputRef.current.scrollTop = outputRef.current.scrollHeight;
+  }, [open, task?.output, task?.events?.length]);
+
+  useEffect(() => {
+    if (!task?.completedAt || !task?.id) return;
+    setHistory((current) => {
+      const next = [{ id: task.id, prompt: task.prompt, status: task.status, completedAt: task.completedAt }, ...current.filter((item) => item.id !== task.id)].slice(0, 12);
+      try { localStorage.setItem("jarvis-engineering-history", JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, [task?.id, task?.completedAt, task?.status, task?.prompt]);
+
+  const submit = async (event) => {
+    event.preventDefault();
+    const value = prompt.trim();
+    if (!value || submitting || isRunning) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await onRun(value);
+      setPrompt("");
+    } catch (submitError) {
+      setError(submitError.message || "工程任务提交失败");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const runQuickAction = async (value) => {
+    if (isRunning || !status?.available) return;
+    setError("");
+    setPrompt(value);
+    try {
+      await onRun(value);
+    } catch (runError) {
+      setError(runError.message || "工程任务提交失败");
+    }
+  };
+
+  if (!open) return null;
+  return (
+    <section
+      className="engineering-console"
+      aria-label="Grok Build 工程台"
+    >
+      <header className="engineering-header">
+        <div><Wrench size={16} /><span>GROK BUILD / 工程代理</span></div>
+        <div className="engineering-state">
+          <i className={cls(status?.available && "online", task?.status === "waiting_permission" && "attention")} />
+          <strong>{task ? labels[task.status] || task.status : status?.available ? "待命" : "未安装"}</strong>
+          <button className="engineering-icon" type="button" onClick={onClose} aria-label="关闭工程台" title="关闭工程台"><X size={16} /></button>
+        </div>
+      </header>
+
+      <div className="engineering-layout">
+        <aside className="engineering-sidebar" aria-label="工程台导航">
+          <button className="engineering-new-task" type="button" onClick={() => { setPrompt(""); setError(""); }} disabled={isRunning}>
+            <FileText size={15} />新建任务
+          </button>
+          <section className="engineering-side-section">
+            <span>工作区 / WORKSPACE</span>
+            <strong title={workspace}>{workspace}</strong>
+            <small>H: ONLY</small>
+          </section>
+          <section className="engineering-side-section">
+            <span>任务线程 / THREADS</span>
+            <div className="engineering-history">
+              {history.length ? history.slice(0, 5).map((item) => <button key={item.id} type="button" title={item.prompt} onClick={() => { setPrompt(item.prompt); setView("conversation"); }}><i className={item.status === "completed" ? "done" : "fail"} />{item.prompt}</button>) : <small>完成的任务会保留在这里</small>}
+            </div>
+          </section>
+          <section className="engineering-side-section">
+            <span>快捷操作 / ACTIONS</span>
+            <div className="engineering-quick-actions">
+              {quickActions.map((action) => (
+                <button key={action.label} type="button" onClick={() => runQuickAction(action.prompt)} disabled={isRunning || !status?.available}>
+                  <Play size={12} />{action.label}
+                </button>
+              ))}
+            </div>
+          </section>
+          <section className="engineering-side-section engineering-side-status">
+            <span>代理状态 / AGENT</span>
+            <strong>{task ? labels[task.status] || task.status : status?.available ? "待命" : "未安装"}</strong>
+            <small>DeepSeek V4 Pro 驱动 Grok Build</small>
+          </section>
+        </aside>
+
+        <div className="engineering-main">
+          <div className="engineering-meta">
+            <span>MODEL <b>DeepSeek V4 Pro</b></span>
+            <span>WORKSPACE <b>{workspace}</b></span>
+            <span>STORAGE <b>H: ONLY</b></span>
+          </div>
+          <nav className="engineering-tabs" aria-label="工程视图">
+            {[['conversation','对话'],['plan','计划'],['changes','变更'],['terminal','终端']].map(([key, label]) => <button key={key} type="button" className={view === key ? "active" : ""} onClick={() => setView(key)}>{label}</button>)}
+          </nav>
+          <div className="engineering-body">
+            <div className="engineering-output" ref={outputRef} aria-live="polite">
+              {view === "conversation" ? <>
+                {task?.prompt ? <div className="engineering-request"><span>任务</span><p>{task.prompt}</p></div> : null}
+                {task?.thought && isRunning ? <div className="engineering-thinking"><Loader2 className="spin" size={13} /><span>DeepSeek 正在分析与执行</span></div> : null}
+                {task?.output ? <pre>{task.output}</pre> : <div className="engineering-empty"><Wrench size={28} /><strong>工程代理待命</strong><span>用于创建、修改、检查文件和运行工程任务</span></div>}
+              </> : view === "plan" ? <div className="engineering-plan-view">{task?.plan?.length ? task.plan.map((step, i) => <div key={i}><b>{String(step.status || "pending").toUpperCase()}</b><span>{step.step || step.title || step.detail || String(step)}</span></div>) : <div className="engineering-empty"><ListTodo size={28} /><strong>等待 Agent 生成计划</strong><span>执行任务后，计划步骤会实时显示在这里</span></div>}</div>
+                : view === "changes" ? <div className="engineering-empty"><GitCompare size={28} /><strong>变更审阅</strong><span>{task?.output ? "请在任务输出中查看 Agent 汇总的文件变更；精确 diff 接入中" : "执行修改任务后，这里显示文件变更摘要"}</span></div>
+                : <div className="engineering-empty"><TerminalSquare size={28} /><strong>终端输出</strong><span>{task?.events?.length ? "命令执行事件已记录在右侧轨迹" : "Agent 运行命令后，终端事件会显示在右侧"}</span></div>}
+              {task?.error ? <div className="engineering-error"><CircleAlert size={14} /><span>{task.error}</span></div> : null}
+            </div>
+            <aside className="engineering-events" aria-label="执行轨迹">
+              <span>EXECUTION TRACE</span>
+              {(task?.events || []).slice(-9).reverse().map((item, index) => (
+                <div key={`${item.at}-${index}`}><i /><p><strong>{item.title || item.type}</strong>{item.detail ? <small>{item.detail}</small> : null}</p></div>
+              ))}
+              {!task?.events?.length ? <p className="engineering-events-empty">任务开始后在这里显示步骤</p> : null}
+            </aside>
+          </div>
+
+          {task?.permission ? (
+            <div className="engineering-permission" role="alert">
+              <ShieldCheck size={18} />
+              <div><strong>{task.permission.title}</strong><span>{task.permission.kind || "此操作会修改系统状态，请确认是否仅允许本次执行。"}</span></div>
+              <button className="secondary" type="button" onClick={() => onPermission("reject")}>拒绝</button>
+              <button className="primary" type="button" onClick={() => onPermission("approve")}>仅允许本次</button>
+            </div>
+          ) : null}
+
+          <form className="engineering-command" onSubmit={submit}>
+            <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="描述要工程代理完成的任务" rows={2} disabled={isRunning} />
+            {isRunning ? (
+              <button className="secondary engineering-stop" type="button" onClick={onCancel}><Square size={15} />停止</button>
+            ) : (
+              <button className="primary engineering-run" type="submit" disabled={!prompt.trim() || submitting || !status?.available}>
+                {submitting ? <Loader2 className="spin" size={15} /> : <Play size={15} />}执行
+              </button>
+            )}
+          </form>
+          {error ? <div className="engineering-form-error">{error}</div> : null}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AgentPortrait({ state, voiceStatusText, sending, mode }) {
+  const video = VISUALS[state] || VISUALS.idle;
+  const [videoFailed, setVideoFailed] = useState(false);
+
+  useEffect(() => {
+    setVideoFailed(false);
+  }, [video]);
+
+  return (
+    <section className={cls("agent-portrait", `state-${state}`, `mode-${mode}`)} aria-label="Jarvis 状态">
+      <motion.div
+        className="entity-frame"
+        initial={false}
+        animate={{
+          y: state === "listening" ? -2 : 0,
+          scale: state === "thinking" ? 1.015 : 1
+        }}
+        transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <video
+          key={video}
+          className={cls("entity-video", videoFailed && "is-failed")}
+          src={video}
+          autoPlay
+          muted
+          loop
+          playsInline
+          aria-hidden="true"
+          onError={() => setVideoFailed(true)}
+        />
+        <div className="entity-matte" />
+        <div id="voice-panel" className="voice-panel">
+          <canvas id="voice-canvas" width="360" height="360" />
+          {mode === "standby" || mode === "active" ? <div className="standby-orb-name">JARVIS</div> : null}
+          <div className="voice-readout">
+            <span id="voice-status">{voiceStatusText}</span>
+            <span id="voice-transcript" />
+          </div>
+        </div>
+      </motion.div>
+      <div className="portrait-copy">
+        <span>JARVIS</span>
+        <strong>{stateLabel(state)}</strong>
+        <p>{sending ? "DeepSeek 正在生成回复。" : voiceStatusText}</p>
+      </div>
+    </section>
+  );
+}
+
+function StandbyLayer() {
+  return <section className="standby-layer" aria-label="Jarvis 待机屏保"><ClockReadout variant="standby" /></section>;
+}
+
+function ClockReadout({ variant = "workbench" }) {
+  const clock = useClock();
+  return <div className={cls("clock-readout", `${variant}-clock`)} aria-label="本地时间"><strong>{clock.time}</strong><span>{clock.date}</span></div>;
+}
+
+function HudTerminal({ messages, sending, lastError }) {
+  const visibleMessages = messages.slice(-40);
+  const terminalRef = useRef(null);
+
+  useEffect(() => {
+    const terminal = terminalRef.current;
+    if (!terminal) return;
+    const frame = window.requestAnimationFrame(() => {
+      terminal.scrollTop = terminal.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [messages, sending, lastError]);
+
+  return (
+    <aside className="hud-terminal" aria-label="对话记录">
+      <div className="terminal-cap">
+        <div><span>对话历史</span><small>CONVERSATION HISTORY</small></div>
+        {sending ? <Loader2 className="spin" size={13} /> : <Radio size={13} />}
+      </div>
+      <div className="terminal-lines" ref={terminalRef}>
+        {visibleMessages.length === 0 ? (
+          <p className="terminal-empty">Awaiting command input.</p>
+        ) : visibleMessages.map((message) => (
+          <div key={message.id} className={cls("terminal-line", message.role)}>
+            <div className="terminal-line-head">
+              <span>{message.role === "user" ? "YOU" : message.role === "jarvis" ? "JARVIS" : "SYSTEM"}</span>
+              {message.timestamp ? <time>{formatTime(message.timestamp)}</time> : null}
+            </div>
+            {message.role === "jarvis"
+              ? <BilingualMessageText content={message.content} compact />
+              : <p>{message.content}</p>}
+          </div>
+        ))}
+        {lastError ? (
+          <div className="terminal-line system">
+            <span>ERROR</span>
+            <p>{lastError}</p>
+          </div>
+        ) : null}
+      </div>
+    </aside>
+  );
+}
+
+function SettingsDrawer({ open, onClose, activation, readiness, api, refreshAll }) {
+  const [apiKey, setApiKey] = useState("");
+  const [provider, setProvider] = useState("deepseek");
+  const [model, setModel] = useState("deepseek-v4-pro");
+  const [baseURL, setBaseURL] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState({ text: "", type: "" });
+  const drawerRef = useRef(null);
+  const closeButtonRef = useRef(null);
+
+  useEffect(() => {
+    if (!activation) return;
+    setProvider(activation.provider || "deepseek");
+    setModel(activation.model || activation.defaultModel || "deepseek-v4-pro");
+    setBaseURL(activation.baseURL || "");
+  }, [activation]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const previousFocus = document.activeElement;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = [...(drawerRef.current?.querySelectorAll(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+      ) || [])];
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    const frame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("keydown", onKeyDown);
+      previousFocus?.focus?.();
+    };
+  }, [onClose, open]);
+
+  const saveModel = async () => {
+    setSaving(true);
+    setFeedback({ text: "", type: "" });
+    try {
+      const endpoint = activation?.activated ? "/settings/model" : "/activate";
+      const body = {
+        provider,
+        model,
+        baseURL,
+        ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {})
+      };
+      const response = await fetch(`${api}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify(body)
+      });
+      const data = await readJson(response);
+      if (!response.ok || data.ok === false) throw new Error(data.error || "保存失败");
+      setApiKey("");
+      setFeedback({ text: "模型配置已保存", type: "success" });
+      await refreshAll();
+    } catch (error) {
+      setFeedback({ text: error.message || "保存失败", type: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const caps = readiness?.capabilities || {};
+
+  return (
+    <AnimatePresence>
+      {open ? (
+        <motion.aside
+          ref={drawerRef}
+          className="drawer"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="settings-drawer-title"
+          initial={{ opacity: 0, x: 28 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 28 }}
+          transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
+        >
+          <div className="drawer-head">
+            <div>
+              <span>Settings</span>
+              <strong id="settings-drawer-title">模型与能力</strong>
+            </div>
+            <button ref={closeButtonRef} className="icon-btn" type="button" onClick={onClose} aria-label="关闭设置">
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="drawer-section">
+            <StatusPill ok={!!activation?.activated} label="DeepSeek" detail={activation?.activated ? activation.model || activation.provider : "未激活"} />
+            <label className="field">
+              <span>Provider</span>
+              <input value={provider} onChange={(event) => setProvider(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Model</span>
+              <select value={model} onChange={(event) => setModel(event.target.value)}>
+                {(activation?.models || [{ id: model, label: model }]).map((item) => (
+                  <option key={item.id} value={item.id}>{item.label || item.id}</option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>API Key</span>
+              <input
+                type="password"
+                autoComplete="off"
+                value={apiKey}
+                onChange={(event) => setApiKey(event.target.value)}
+                placeholder={activation?.activated ? "留空则不修改" : "sk-..."}
+              />
+            </label>
+            <label className="field">
+              <span>Base URL</span>
+              <input type="url" value={baseURL} onChange={(event) => setBaseURL(event.target.value)} placeholder="默认可留空" />
+            </label>
+            <button className="primary wide" disabled={saving} aria-busy={saving} onClick={saveModel} type="button">
+              {saving ? <Loader2 className="spin" size={16} /> : <KeyRound size={16} />}
+              保存模型配置
+            </button>
+            {feedback.text ? (
+              <p className={cls("feedback", feedback.type === "error" && "error")} role={feedback.type === "error" ? "alert" : "status"} aria-live="polite">
+                {feedback.text}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="drawer-section grid">
+            <StatusPill compact ok={!!caps.asr?.ready} label="ASR" detail={caps.asr?.provider || "未配置"} />
+            <StatusPill compact ok={!!caps.tts?.ready} label="TTS" detail={caps.tts?.provider || "未配置"} />
+            <StatusPill compact ok={!!caps.tools?.ready} label="Tools" detail={caps.tools ? `${caps.tools.total || 0}` : ""} />
+            <StatusPill compact ok={!!caps.memory?.ready} label="Memory" detail={caps.memory ? `${caps.memory.count || 0}` : ""} />
+          </div>
+
+          <div className="drawer-section link-grid">
+            {LINKS.map((item) => <ModuleLink key={item.path || item.action} item={item} api={api} onSettings={onClose} />)}
+          </div>
+        </motion.aside>
+      ) : null}
+    </AnimatePresence>
+  );
+}
+
+function sanitizeAcuiValue(value, depth = 0) {
+  if (depth > 4) return "[nested data]";
+  if (value === null || value === undefined) return value ?? null;
+  if (typeof value === "string") return value.slice(0, ACUI_STRING_LIMIT);
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "boolean") return value;
+  if (Array.isArray(value)) return value.slice(0, 12).map((item) => sanitizeAcuiValue(item, depth + 1));
+  if (typeof value !== "object") return String(value).slice(0, ACUI_STRING_LIMIT);
+  return Object.fromEntries(
+    Object.entries(value).slice(0, 32).map(([key, item]) => [
+      String(key).slice(0, 80),
+      sanitizeAcuiValue(item, depth + 1)
+    ])
+  );
+}
+
+function mergeAcuiPatch(props, patchOp, data) {
+  const current = props && typeof props === "object" ? props : {};
+  const patch = data && typeof data === "object" ? sanitizeAcuiValue(data) : {};
+  if (patchOp === "replace") return patch;
+  if (patchOp === "append") {
+    const key = String(patch.key || "items").slice(0, 80);
+    const nextItems = Array.isArray(current[key]) ? current[key].slice(0, 11) : [];
+    return { ...current, [key]: [...nextItems, sanitizeAcuiValue(patch.value)] };
+  }
+  return { ...current, ...patch };
+}
+
+function useAcuiCards(api) {
+  const [cards, setCards] = useState([]);
+  const [connected, setConnected] = useState(false);
+  const socketRef = useRef(null);
+
+  const sendSignal = useCallback((type, target, payload = {}) => {
+    const socket = socketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+    try {
+      socket.send(JSON.stringify({
+        v: 1,
+        kind: "ui.signal",
+        type,
+        target: target || null,
+        payload: sanitizeAcuiValue(payload),
+        ts: Date.now()
+      }));
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const dismissCard = useCallback((id, by = "user") => {
+    if (!id) return;
+    let dwellMs = 0;
+    setCards((current) => {
+      const card = current.find((item) => item.id === id);
+      if (card) dwellMs = Math.max(0, Date.now() - card.mountedAt);
+      return current.filter((item) => item.id !== id);
+    });
+    window.setTimeout(() => sendSignal("card.dismissed", id, { by, dwell_ms: dwellMs }), 0);
+  }, [sendSignal]);
+
+  useEffect(() => {
+    if (!api) return undefined;
+    let disposed = false;
+    let reconnectTimer = 0;
+    let reconnectDelay = 800;
+
+    const connect = () => {
+      if (disposed) return;
+      let socket;
+      try {
+        const url = new URL(api);
+        url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+        url.pathname = "/acui";
+        url.search = "";
+        socket = new WebSocket(url.toString());
+      } catch {
+        reconnectTimer = window.setTimeout(connect, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, ACUI_RECONNECT_MAX_MS);
+        return;
+      }
+      socketRef.current = socket;
+      socket.addEventListener("open", () => {
+        if (disposed || socket !== socketRef.current) return;
+        reconnectDelay = 800;
+        setConnected(true);
+      });
+      socket.addEventListener("message", (event) => {
+        let message;
+        try { message = JSON.parse(event.data); } catch { return; }
+        if (!message || message.v !== 1) return;
+        if (message.kind === "ping") {
+          try { socket.send(JSON.stringify({ v: 1, kind: "pong" })); } catch {}
+          return;
+        }
+        if (message.kind !== "ui.command" || !message.id) return;
+        const id = String(message.id).slice(0, 160);
+        if (message.op === "unmount") {
+          dismissCard(id, "agent");
+          return;
+        }
+        if (message.op === "update" || message.op === "patch") {
+          setCards((current) => current.map((card) => {
+            if (card.id !== id) return card;
+            const incoming = sanitizeAcuiValue(message.props || {});
+            const props = message.op === "patch"
+              ? mergeAcuiPatch(card.props, message.patchOp, message.data)
+              : { ...card.props, ...incoming };
+            return { ...card, props, updatedAt: Date.now() };
+          }));
+          return;
+        }
+        if (message.op !== "mount") return;
+        const now = Date.now();
+        const nextCard = {
+          id,
+          component: String(message.component || message.mode || "Result").slice(0, 80),
+          mode: String(message.mode || "component").slice(0, 40),
+          props: sanitizeAcuiValue(message.props || {}),
+          hint: sanitizeAcuiValue(message.hint || {}),
+          mountedAt: now,
+          updatedAt: now
+        };
+        let evicted = null;
+        setCards((current) => {
+          const withoutDuplicate = current.filter((card) => card.id !== id);
+          const next = [...withoutDuplicate, nextCard];
+          if (next.length <= ACUI_CARD_LIMIT) return next;
+          evicted = next[0];
+          return next.slice(-ACUI_CARD_LIMIT);
+        });
+        window.setTimeout(() => {
+          if (evicted) sendSignal("card.dismissed", evicted.id, { by: "capacity", dwell_ms: now - evicted.mountedAt });
+          sendSignal("card.mounted", id, { component: nextCard.component });
+        }, 0);
+      });
+      const reconnect = () => {
+        if (disposed || socket !== socketRef.current) return;
+        socketRef.current = null;
+        setConnected(false);
+        window.clearTimeout(reconnectTimer);
+        reconnectTimer = window.setTimeout(connect, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, ACUI_RECONNECT_MAX_MS);
+      };
+      socket.addEventListener("close", reconnect);
+      socket.addEventListener("error", () => {
+        try { socket.close(); } catch {}
+      });
+    };
+
+    connect();
+    return () => {
+      disposed = true;
+      window.clearTimeout(reconnectTimer);
+      const socket = socketRef.current;
+      socketRef.current = null;
+      setConnected(false);
+      try { socket?.close?.(); } catch {}
+    };
+  }, [api, dismissCard, sendSignal]);
+
+  return { cards, connected, dismissCard, sendSignal };
+}
+
+function AcuiWeatherCard({ props }) {
+  const forecast = Array.isArray(props.forecast) ? props.forecast.slice(0, 3) : [];
+  return (
+    <div className="acui-weather">
+      <div className="acui-weather-primary">
+        <CloudSun size={30} aria-hidden="true" />
+        <div>
+          <strong>{props.temp ?? "--"}<span>deg</span></strong>
+          <p>{props.condition || props.desc || "Weather update"}</p>
+        </div>
+      </div>
+      <div className="acui-weather-city">{props.city || "Current location"}</div>
+      <div className="acui-weather-meta">
+        {props.feel != null ? <span><Thermometer size={13} />Feels {props.feel} deg</span> : null}
+        {props.wind ? <span><Wind size={13} />{props.wind}</span> : null}
+        {props.high != null || props.low != null ? <span>H {props.high ?? "--"} / L {props.low ?? "--"}</span> : null}
+      </div>
+      {forecast.length ? (
+        <div className="acui-forecast">
+          {forecast.map((item, index) => (
+            <span key={`${item.day || item.time || "forecast"}-${index}`}>
+              <small>{item.day || item.time || `D${index + 1}`}</small>
+              <b>{item.high ?? item.temp ?? "--"}</b>
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AcuiStatusCard({ component, props }) {
+  if (component === "SelfCheckCard" && Array.isArray(props.results)) {
+    return (
+      <div className="acui-check-list">
+        {props.results.slice(0, 6).map((item, index) => (
+          <div key={`${item.name || "check"}-${index}`}>
+            {String(item.status || "").toLowerCase() === "ok" ? <CheckCircle2 size={14} /> : <Activity size={14} />}
+            <span>{item.name || `Check ${index + 1}`}</span>
+            <small>{item.note || item.status || "ready"}</small>
+          </div>
+        ))}
+        {props.overall ? <p>{props.overall}</p> : null}
+      </div>
+    );
+  }
+  if (component === "SelfCheckStepCard") {
+    const total = Math.max(1, Number(props.total) || 1);
+    const step = Math.min(total, Math.max(0, Number(props.step) || 0));
+    return (
+      <div className="acui-progress">
+        <p>{props.name || "System check"}</p>
+        <span><i style={{ width: `${(step / total) * 100}%` }} /></span>
+        <small>{step} / {total}</small>
+      </div>
+    );
+  }
+  if (component === "AwakeningCard") {
+    return (
+      <div className="acui-finding">
+        <strong>{props.title || "System finding"}</strong>
+        {props.finding ? <p>{props.finding}</p> : null}
+        <small>{props.index || 0} / {props.total || 0}</small>
+      </div>
+    );
+  }
+  const entries = Object.entries(props || {}).slice(0, 8);
+  return entries.length ? (
+    <dl className="acui-data-list">
+      {entries.map(([key, value]) => (
+        <div key={key}>
+          <dt>{key}</dt>
+          <dd>{typeof value === "object" ? JSON.stringify(value).slice(0, 220) : String(value)}</dd>
+        </div>
+      ))}
+    </dl>
+  ) : <p className="acui-empty">Result received.</p>;
+}
+
+function AcuiResultCard({ card, onDismiss }) {
+  useEffect(() => {
+    const lifetime = card.component === "WeatherCard" ? 15_000 : 30_000;
+    const timer = window.setTimeout(() => onDismiss(card.id, "auto-timeout"), lifetime);
+    return () => window.clearTimeout(timer);
+  }, [card.component, card.id, card.updatedAt, onDismiss]);
+
+  const isInline = card.mode === "inline-template" || card.mode === "inline-script";
+  return (
+    <motion.article
+      className="acui-result-card"
+      layout
+      initial={{ opacity: 0, x: 24, scale: 0.97 }}
+      animate={{ opacity: 1, x: 0, scale: 1 }}
+      exit={{ opacity: 0, x: 24, scale: 0.97 }}
+      transition={{ duration: 0.24 }}
+      aria-label={`${card.component} result`}
+    >
+      <header>
+        <span><i />LIVE RESULT</span>
+        <strong>{card.component}</strong>
+        <button type="button" onClick={() => onDismiss(card.id, "user")} aria-label={`Close ${card.component}`} title="Close result">
+          <X size={15} />
+        </button>
+      </header>
+      <div className="acui-card-body">
+        {card.component === "WeatherCard"
+          ? <AcuiWeatherCard props={card.props} />
+          : isInline
+            ? <div className="acui-safe-notice"><CircleAlert size={15} /><p>Dynamic interface code was received but was not executed. The structured result is shown safely.</p></div>
+            : <AcuiStatusCard component={card.component} props={card.props} />}
+      </div>
+    </motion.article>
+  );
+}
+
+function AcuiWorkbenchLayer({ cards, connected, onDismiss }) {
+  if (!cards.length) {
+    return React.createElement("div", {
+      className: "acui-connection-marker",
+      "data-connected": connected ? "true" : "false",
+      "aria-hidden": "true"
+    });
+  }
+  return React.createElement(
+    "aside",
+    {
+      className: "acui-result-layer",
+      "aria-label": "Jarvis live results",
+      "aria-live": "polite",
+      "data-connected": connected ? "true" : "false"
+    },
+    cards.map((card) => React.createElement(AcuiResultCard, {
+      key: card.id,
+      card,
+      onDismiss
+    }))
+  );
+}
+
+function App() {
+  const [api, setApi] = useState(() => (
+    typeof window !== "undefined" && window.jarvisDesktop?.getBackendPort ? "" : DEFAULT_API
+  ));
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState("");
+  const [connection, setConnection] = useState({ state: "connecting", detail: "连接核心服务" });
+  const [activation, setActivation] = useState(null);
+  const [readiness, setReadiness] = useState(null);
+  const [status, setStatus] = useState(null);
+  const [sending, setSending] = useState(false);
+  const [visualState, setVisualState] = useState("idle");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [voiceActive, setVoiceActive] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [voiceStatusText, setVoiceStatusText] = useState("点按语音开始");
+  const [lastError, setLastError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [interfaceMode, setInterfaceMode] = useState("standby");
+  const [musicEnabled, setMusicEnabled] = useState(() => isAmbientMusicEnabled());
+  const [engineeringOpen, setEngineeringOpen] = useState(false);
+  const [grokBuildStatus, setGrokBuildStatus] = useState(null);
+  const { cards: acuiCards, connected: acuiConnected, dismissCard: dismissAcuiCard } = useAcuiCards(api);
+
+  useEffect(() => {
+    const onLevel = (event) => setAudioLevel(Math.min(1, Math.max(0, Number(event.detail?.ttsLevel || event.detail?.level || 0))));
+    window.addEventListener("jarvis:voice-level", onLevel);
+    return () => window.removeEventListener("jarvis:voice-level", onLevel);
+  }, []);
+
+  const inputRef = useRef(null);
+  const messagesEndRef = useRef(null);
+  const eventSourceRef = useRef(null);
+  const sendMessageRef = useRef(null);
+  const pollRef = useRef(null);
+  const pollInFlightRef = useRef(false);
+  const reloadTimerRef = useRef(null);
+  const refreshInFlightRef = useRef(null);
+  const maxMessageIdRef = useRef(0);
+  const lastVoiceTurnRef = useRef(false);
+  const lastSpokenTextRef = useRef("");
+  const lastSpokenAtRef = useRef(0);
+  const lastVoiceSendTextRef = useRef({ text: "", at: 0 });
+  const voiceBlockedUntilRef = useRef(0);
+  const ttsIsActiveRef = useRef(false);
+  const ttsCurrentTextRef = useRef("");
+  const currentSegmentRef = useRef("");
+  const currentAudioRef = useRef(null);
+  const currentAudioUrlRef = useRef("");
+  const currentSpeechFinishRef = useRef(null);
+  const currentSpeechAbortRef = useRef(null);
+  const ttsAudioGraphRef = useRef(null);
+  const speakReplyRef = useRef(null);
+  const interfaceModeRef = useRef("standby");
+  const wakeRestartRef = useRef(null);
+  const workbenchEnterRef = useRef(null);
+  const postWakeListenRef = useRef(null);
+  const postReplyListenRef = useRef(null);
+  const wakeSequencePromiseRef = useRef(null);
+  const wakeMetricsRef = useRef({});
+  const wakeAcceptedRef = useRef(false);
+  const voiceInitializedRef = useRef(false);
+  const speechPrefetchStartedRef = useRef(false);
+  const speechCacheRef = useRef(new Map());
+  const activeTurnRef = useRef(null);
+  const visibleStreamRef = useRef(false);
+  const postReplyListenMetricsRef = useRef({ scheduledAt: 0, startedAt: 0 });
+
+  useEffect(() => {
+    interfaceModeRef.current = interfaceMode;
+    window.__JARVIS_INTERFACE_MODE__ = interfaceMode;
+    if (interfaceMode === "standby") wakeAcceptedRef.current = false;
+    return () => {
+      if (window.__JARVIS_INTERFACE_MODE__ === interfaceMode) delete window.__JARVIS_INTERFACE_MODE__;
+    };
+  }, [interfaceMode]);
+
+  const apiFetch = useCallback(async (path, options = {}) => {
+    if (!api) throw new Error("核心服务端口尚未就绪");
+    const { timeoutMs = API_TIMEOUT_MS, signal, ...fetchOptions } = options;
+    const controller = new AbortController();
+    const relayAbort = () => controller.abort(signal?.reason);
+    if (signal?.aborted) relayAbort();
+    else signal?.addEventListener?.("abort", relayAbort, { once: true });
+    const timeout = window.setTimeout(() => controller.abort(new DOMException("Request timed out", "TimeoutError")), timeoutMs);
+    try {
+      const response = await fetch(`${api}${path}`, {
+        ...fetchOptions,
+        signal: controller.signal,
+        headers: {
+          ...(fetchOptions.body ? { "Content-Type": "application/json; charset=utf-8" } : {}),
+          ...(fetchOptions.headers || {})
+        }
+      });
+      const data = await readJson(response);
+      if (!response.ok || data.ok === false) {
+        throw new Error(data.error || response.statusText || "请求失败");
+      }
+      return data;
+    } finally {
+      window.clearTimeout(timeout);
+      signal?.removeEventListener?.("abort", relayAbort);
+    }
+  }, [api]);
+
+  const refreshGrokBuild = useCallback(async () => {
+    if (!api) return null;
+    const next = await apiFetch("/grok-build/status");
+    setGrokBuildStatus(next);
+    return next;
+  }, [api, apiFetch]);
+
+  const startEngineeringTask = useCallback(async (prompt) => {
+    setEngineeringOpen(true);
+    const result = await apiFetch("/grok-build/tasks", {
+      method: "POST",
+      body: JSON.stringify({ prompt })
+    });
+    setGrokBuildStatus((current) => ({ ...(current || {}), ok: true, available: true, task: result.task }));
+    return result.task;
+  }, [apiFetch]);
+
+  const cancelEngineeringTask = useCallback(async () => {
+    const taskId = grokBuildStatus?.task?.id;
+    if (!taskId) return;
+    const result = await apiFetch(`/grok-build/tasks/${encodeURIComponent(taskId)}/cancel`, { method: "POST" });
+    setGrokBuildStatus((current) => ({ ...(current || {}), task: result.task }));
+  }, [apiFetch, grokBuildStatus?.task?.id]);
+
+  const answerEngineeringPermission = useCallback(async (decision) => {
+    const taskId = grokBuildStatus?.task?.id;
+    if (!taskId) return;
+    const result = await apiFetch(`/grok-build/tasks/${encodeURIComponent(taskId)}/permission`, {
+      method: "POST",
+      body: JSON.stringify({ decision })
+    });
+    setGrokBuildStatus((current) => ({ ...(current || {}), task: result.task }));
+  }, [apiFetch, grokBuildStatus?.task?.id]);
+
+  useEffect(() => {
+    if (!api) return undefined;
+    refreshGrokBuild().catch(() => {});
+    const timer = window.setInterval(() => {
+      const statusName = grokBuildStatus?.task?.status;
+      if (engineeringOpen || ["starting", "running", "waiting_permission"].includes(statusName)) {
+        refreshGrokBuild().catch(() => {});
+      }
+    }, 1200);
+    return () => window.clearInterval(timer);
+  }, [api, engineeringOpen, grokBuildStatus?.task?.status, refreshGrokBuild]);
+
+  const prepareSpeechBlob = useCallback((rawText, { cache = false, signal } = {}) => {
+    const text = plainSpeechText(spokenReplyText(rawText));
+    if (!api || !text || /[\u3400-\u9fff]/.test(text)) return Promise.resolve(null);
+    const key = `${JARVIS_TTS_VOICE_ID}:${text}`;
+    const cached = speechCacheRef.current.get(key);
+    if (cache && cached) return cached;
+    const staticAsset = text === WAKE_GREETING_SPEECH
+      ? "./audio/wake-greeting.wav"
+      : text === READY_SELF_CHECK_SPEECH
+        ? "./audio/self-check-ready.wav"
+        : "";
+    const controller = new AbortController();
+    const relayAbort = () => controller.abort(signal?.reason);
+    if (signal?.aborted) relayAbort();
+    else signal?.addEventListener?.("abort", relayAbort, { once: true });
+    const timeout = window.setTimeout(() => controller.abort(new DOMException("TTS request timed out", "TimeoutError")), TTS_FETCH_TIMEOUT_MS);
+    const task = fetch(staticAsset || `${api}/tts/stream`, staticAsset ? {
+      signal: controller.signal
+    } : {
+      method: "POST",
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ text })
+    }).then(async (response) => {
+      if (!response.ok) throw new Error("TTS stream failed");
+      return response.blob();
+    }).finally(() => {
+      window.clearTimeout(timeout);
+      signal?.removeEventListener?.("abort", relayAbort);
+    });
+    if (cache) {
+      while (speechCacheRef.current.size >= SPEECH_CACHE_LIMIT) {
+        const oldestKey = speechCacheRef.current.keys().next().value;
+        if (!oldestKey) break;
+        speechCacheRef.current.delete(oldestKey);
+      }
+      speechCacheRef.current.set(key, task);
+      task.catch(() => {
+        if (speechCacheRef.current.get(key) === task) speechCacheRef.current.delete(key);
+      });
+    }
+    return task;
+  }, [api]);
+
+  const loadConversations = useCallback(async ({ commit = true } = {}) => {
+    const rows = await apiFetch("/conversations?limit=80");
+    const normalized = normalizeMessages(rows);
+    maxMessageIdRef.current = Math.max(0, ...normalized.map((row) => Number(row.id) || 0));
+    if (commit) setMessages(normalized);
+    return normalized;
+  }, [apiFetch]);
+
+  const refreshAll = useCallback(() => {
+    if (refreshInFlightRef.current) return refreshInFlightRef.current;
+    setRefreshing(true);
+    const task = (async () => {
+      const [activationData, readinessData, statusData, voiceData] = await Promise.all([
+        apiFetch("/activation-status").catch((error) => ({ activated: false, error: error.message })),
+        apiFetch("/readiness").catch((error) => ({ ok: false, error: error.message, capabilities: {} })),
+        apiFetch("/status").catch((error) => ({ ok: false, error: error.message })),
+        apiFetch("/settings/voice").catch(() => null)
+      ]);
+      const voiceProvider = voiceData?.voice?.voiceProvider;
+      if (voiceProvider) {
+        localStorage.setItem(VOICE_PROVIDER_KEY, voiceProvider);
+        window.__JARVIS_VOICE_PROVIDER__ = voiceProvider;
+      }
+      setActivation(activationData);
+      setReadiness(readinessData);
+      setStatus(statusData);
+      return { activationData, readinessData, statusData, voiceData };
+    })().finally(() => {
+      refreshInFlightRef.current = null;
+      setRefreshing(false);
+    });
+    refreshInFlightRef.current = task;
+    return task;
+  }, [apiFetch]);
+
+  useEffect(() => {
+    if (api) window.__JARVIS_API_BASE__ = api;
+  }, [api]);
+
+  useEffect(() => {
+    if (!api || speechPrefetchStartedRef.current) return undefined;
+    speechPrefetchStartedRef.current = true;
+    const controller = new AbortController();
+    (async () => {
+      let greeting = null;
+      for (let attempt = 0; attempt < 4 && !controller.signal.aborted && !greeting; attempt += 1) {
+        greeting = await prepareSpeechBlob(WAKE_GREETING, { cache: true, signal: controller.signal }).catch(() => null);
+        if (!greeting && !controller.signal.aborted) {
+          await new Promise((resolve) => window.setTimeout(resolve, 350 + attempt * 150));
+        }
+      }
+      if (controller.signal.aborted || !greeting) return;
+      const snapshot = await apiFetch("/readiness", { signal: controller.signal, timeoutMs: 5000 }).catch(() => null);
+      if (snapshot) {
+        await prepareSpeechBlob(buildSelfCheckReply(snapshot), { cache: true, signal: controller.signal }).catch(() => null);
+      }
+    })();
+    return () => controller.abort();
+  }, [api, apiFetch, prepareSpeechBlob]);
+
+  useEffect(() => {
+    initAudioOutputRouting({ getCurrentAudioEl: () => currentAudioRef.current });
+    if (musicEnabled) startAmbientMusic().catch(() => false);
+  }, []);
+
+  const toggleAmbientMusic = useCallback(async (next = !musicEnabled) => {
+    if (next) {
+      const started = await startAmbientMusic();
+      setMusicEnabled(started);
+      return started;
+    }
+    stopAmbientMusic();
+    setMusicEnabled(false);
+    return true;
+  }, [musicEnabled]);
+
+  const closeSettings = useCallback(() => setDrawerOpen(false), []);
+
+  useEffect(() => {
+    return () => {
+      window.clearTimeout(wakeRestartRef.current);
+      window.clearTimeout(workbenchEnterRef.current);
+      window.clearTimeout(postWakeListenRef.current);
+      window.clearTimeout(postReplyListenRef.current);
+      window.clearTimeout(reloadTimerRef.current);
+      if (pollRef.current) window.clearInterval(pollRef.current);
+      pollRef.current = null;
+      pollInFlightRef.current = false;
+      activeTurnRef.current = null;
+      visibleStreamRef.current = false;
+      currentSpeechAbortRef.current?.abort?.();
+      try { currentAudioRef.current?.pause?.(); } catch {}
+      speechCacheRef.current.clear();
+    };
+  }, []);
+
+  const reloadAfterEvent = useCallback(() => {
+    window.clearTimeout(reloadTimerRef.current);
+    reloadTimerRef.current = window.setTimeout(() => {
+      reloadTimerRef.current = null;
+      loadConversations().catch(() => {});
+      refreshAll().catch(() => {});
+    }, 160);
+  }, [loadConversations, refreshAll]);
+
+  const clearTTSAudioGraph = useCallback((graph = ttsAudioGraphRef.current) => {
+    if (graph) try { graph.teardown?.(); } catch {}
+    if (!graph || graph === ttsAudioGraphRef.current) ttsAudioGraphRef.current = null;
+    try { window.jarvisVoice?.setTTSAnalyser?.(null); } catch {}
+  }, []);
+
+  const stopTTSPlayback = useCallback(() => {
+    currentSpeechAbortRef.current?.abort?.();
+    currentSpeechAbortRef.current = null;
+    const finishActiveSpeech = currentSpeechFinishRef.current;
+    const audio = currentAudioRef.current;
+    if (audio) {
+      try { audio.pause(); audio.src = ""; } catch {}
+    }
+    if (finishActiveSpeech) {
+      finishActiveSpeech(false);
+      return;
+    }
+    currentAudioRef.current = null;
+    if (currentAudioUrlRef.current) try { URL.revokeObjectURL(currentAudioUrlRef.current); } catch {}
+    currentAudioUrlRef.current = "";
+    clearTTSAudioGraph();
+    ttsIsActiveRef.current = false;
+    ttsCurrentTextRef.current = "";
+    currentSegmentRef.current = "";
+    setVisualState((current) => current === "speaking" ? "idle" : current);
+    setAmbientMusicDucked(false);
+  }, [clearTTSAudioGraph]);
+
+  const rememberSpokenText = useCallback((text) => {
+    const now = Date.now();
+    lastSpokenTextRef.current = text;
+    lastSpokenAtRef.current = now;
+    ttsCurrentTextRef.current = text;
+    currentSegmentRef.current = currentSegment(text);
+  }, []);
+
+  const markVoiceReadyForNextTurn = useCallback((source = "voice") => {
+    ttsIsActiveRef.current = false;
+    ttsCurrentTextRef.current = "";
+    currentSegmentRef.current = "";
+    if (source === "tts") {
+      setVoiceStatusText("语音回复结束");
+    } else {
+      setVoiceStatusText("点击麦克风开始");
+    }
+  }, []);
+
+  const isLikelySelfEcho = useCallback((value) => {
+    const normalized = normalizeEchoText(value);
+    if (!normalized) return false;
+    const now = Date.now();
+    const spoken = normalizeEchoText(lastSpokenTextRef.current);
+    const recentSpoken = spoken && now - lastSpokenAtRef.current <= SELF_ECHO_GUARD_MS;
+    const activeTts = ttsIsActiveRef.current;
+    if (activeTts) {
+      if (echoTextOverlaps(normalized, ttsCurrentTextRef.current)) return true;
+      if (echoTextOverlaps(normalized, currentSegmentRef.current)) return true;
+    }
+    if (recentSpoken && echoTextOverlaps(normalized, spoken)) return true;
+    return false;
+  }, []);
+
+  const resumeMicAfterTTS = useCallback(() => {
+    try { window.jarvisVoice?.enterPassiveMode?.(); } catch {}
+    try { window.jarvisVoice?.ensureMonitor?.(); } catch {}
+  }, []);
+
+  const startVoiceListening = useCallback(() => {
+    const toggle = document.getElementById("voice-toggle");
+    if (toggle && !window.jarvisVoice?.isActive?.()) toggle.click();
+  }, []);
+
+  const schedulePostReplyListen = useCallback(() => {
+    window.clearTimeout(postReplyListenRef.current);
+    postReplyListenMetricsRef.current = { scheduledAt: performance.now(), startedAt: 0 };
+    setVoiceStatusText("麦克风待命，点击按钮开始对话");
+    postReplyListenRef.current = window.setTimeout(() => {
+      postReplyListenRef.current = null;
+      if (interfaceModeRef.current !== "active") return;
+      postReplyListenMetricsRef.current.startedAt = performance.now();
+      resumeMicAfterTTS();
+    }, 120);
+  }, [resumeMicAfterTTS]);
+
+  const scheduleWakeListen = useCallback(() => {
+    window.clearTimeout(wakeRestartRef.current);
+    wakeRestartRef.current = window.setTimeout(() => {
+      if (interfaceModeRef.current === "standby" && !window.jarvisVoice?.isActive?.()) {
+        startVoiceListening();
+      }
+    }, WAKE_RESTART_MS);
+  }, [startVoiceListening]);
+
+  const playWakeSequence = useCallback(() => {
+    if (wakeSequencePromiseRef.current) return wakeSequencePromiseRef.current;
+    const task = (async () => {
+      wakeMetricsRef.current.sequenceStartedAt = performance.now();
+      voiceBlockedUntilRef.current = Date.now() + VOICE_POST_TTS_BLOCK_MS;
+      const wakeGreeting = getWakeGreeting();
+      const greetingAudio = prepareSpeechBlob(wakeGreeting, { cache: false });
+      const readinessRequest = apiFetch("/readiness", { timeoutMs: 5000 }).catch(() => readiness);
+      setMessages((current) => [
+        ...current,
+        { id: `wake-greeting-${Date.now()}`, role: "jarvis", content: wakeGreeting, channel: "WAKE" }
+      ]);
+      if (musicEnabled) startAmbientMusic().catch(() => false);
+      const transition = playWakeTransitionSfx().catch(() => false);
+      const greetingLeadStartedAt = performance.now();
+      await Promise.race([
+        transition,
+        new Promise((resolve) => window.setTimeout(resolve, WAKE_GREETING_LEAD_MS))
+      ]);
+      const remainingGreetingLeadMs = WAKE_GREETING_LEAD_MS - (performance.now() - greetingLeadStartedAt);
+      if (remainingGreetingLeadMs > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, remainingGreetingLeadMs));
+      }
+      await speakReplyRef.current?.(WAKE_GREETING, {
+        force: true,
+        resumeMic: false,
+        sequence: true,
+        onPlaybackStart: (at) => { wakeMetricsRef.current.firstSpeechAt = at; },
+        audioBlobPromise: greetingAudio
+      });
+      const readinessSnapshot = await readinessRequest;
+      const report = `${buildSelfCheckReply(readinessSnapshot)}\n\n${await buildWakeSituation(api, readinessSnapshot)}`;
+      const reportAudio = prepareSpeechBlob(report, { cache: true });
+      setMessages((current) => [
+        ...current,
+        { id: `wake-check-${Date.now()}`, role: "jarvis", content: report, channel: "SYSTEM CHECK" }
+      ]);
+      await speakReplyRef.current?.(report, {
+        force: true,
+        resumeMic: false,
+        sequence: true,
+        audioBlobPromise: reportAudio
+      });
+    })().finally(() => {
+      wakeMetricsRef.current.narrationCompletedAt = performance.now();
+      voiceBlockedUntilRef.current = Date.now() + WAKE_LISTEN_DELAY_MS;
+      interfaceModeRef.current = "active";
+      setInterfaceMode("active");
+      if (!ttsIsActiveRef.current) setVisualState("idle");
+      setVoiceStatusText("系统检查完成，点击麦克风开始对话");
+      window.clearTimeout(postWakeListenRef.current);
+      postWakeListenRef.current = window.setTimeout(() => {
+        wakeMetricsRef.current.monitorRequestedAt = performance.now();
+        resumeMicAfterTTS();
+      }, 120);
+      if (wakeSequencePromiseRef.current === task) wakeSequencePromiseRef.current = null;
+    });
+    wakeSequencePromiseRef.current = task;
+    return task;
+  }, [apiFetch, musicEnabled, prepareSpeechBlob, readiness, resumeMicAfterTTS]);
+
+  const enterWorkbench = useCallback(({ listenAfter = false } = {}) => {
+    if (interfaceModeRef.current === "active" || interfaceModeRef.current === "waking") return;
+    interfaceModeRef.current = "waking";
+    wakeAcceptedRef.current = true;
+    window.clearTimeout(wakeRestartRef.current);
+    window.clearTimeout(workbenchEnterRef.current);
+    setInterfaceMode("waking");
+    setVisualState("listening");
+    setVoiceStatusText("Wake up sequence");
+    workbenchEnterRef.current = window.setTimeout(() => {
+      interfaceModeRef.current = "active";
+      setInterfaceMode("active");
+      if (!ttsIsActiveRef.current) {
+        setVisualState("idle");
+        setVoiceStatusText(listenAfter ? "已唤醒，请说指令" : "点击麦克风开始");
+      } else {
+        setVoiceStatusText("Jarvis 正在播报");
+      }
+      if (listenAfter && !ttsIsActiveRef.current) {
+        workbenchEnterRef.current = window.setTimeout(() => {
+          if (interfaceModeRef.current === "active" && !window.jarvisVoice?.isActive?.()) startVoiceListening();
+        }, 500);
+      }
+    }, WORKBENCH_ENTER_MS);
+  }, [startVoiceListening]);
+
+  const acceptWakePhrase = useCallback((text) => {
+    if (interfaceModeRef.current === "active" || wakeAcceptedRef.current) return false;
+    if (!isWakePhrase(text, { loose: true })) return false;
+    wakeMetricsRef.current = { acceptedAt: performance.now() };
+    wakeAcceptedRef.current = true;
+    try { window.jarvisVoice?.enterPassiveMode?.(); } catch {}
+    try { window.jarvisVoice?.ensureMonitor?.(); } catch {}
+    setVoiceActive(false);
+    setLastError("");
+    setMessages((current) => [
+      ...current,
+      { id: `wake-${Date.now()}`, role: "system", content: "Wake phrase accepted. Jarvis online.", channel: "WAKE", timestamp: new Date().toISOString() }
+    ]);
+    enterWorkbench({ listenAfter: false });
+    playWakeSequence().catch((error) => setLastError(error.message || "Wake sequence failed"));
+    return true;
+  }, [enterWorkbench, playWakeSequence]);
+
+  useEffect(() => {
+    window.__jarvisUiProbe = {
+      getMode: () => interfaceModeRef.current,
+      enterWorkbench: () => enterWorkbench({ listenAfter: false }),
+      acceptWakeText: (text) => acceptWakePhrase(text),
+      getWakeMetrics: () => ({ ...wakeMetricsRef.current })
+    };
+    return () => { delete window.__jarvisUiProbe; };
+  }, [acceptWakePhrase, enterWorkbench]);
+
+  const speakReply = useCallback(async (rawText, options = {}) => {
+    const text = plainSpeechText(spokenReplyText(rawText));
+    if (!text) return false;
+    if (/[\u3400-\u9fff]/.test(text)) {
+      setLastError("语音回复缺少英文播报稿，已停止朗读中文字符。");
+      return false;
+    }
+    const now = Date.now();
+    if (!options.force && lastSpokenTextRef.current === text && now - lastSpokenAtRef.current < SELF_ECHO_GUARD_MS) return false;
+    rememberSpokenText(text);
+
+    stopTTSPlayback();
+    setAmbientMusicDucked(true);
+    ttsIsActiveRef.current = true;
+    voiceBlockedUntilRef.current = Date.now() + VOICE_POST_TTS_BLOCK_MS;
+    setVisualState("speaking");
+    try { window.jarvisVoice?.suspendForTTS?.(); } catch {}
+
+    return await new Promise((resolve) => {
+      let finished = false;
+      const speechAbort = new AbortController();
+      currentSpeechAbortRef.current = speechAbort;
+      const playbackTimeout = window.setTimeout(() => {
+        speechAbort.abort();
+        try { currentAudioRef.current?.pause?.(); } catch {}
+        finish(false);
+      }, TTS_PLAYBACK_TIMEOUT_MS);
+      const finish = (ok = false) => {
+        if (finished) return;
+        finished = true;
+        window.clearTimeout(playbackTimeout);
+        if (currentSpeechFinishRef.current === finish) currentSpeechFinishRef.current = null;
+        if (currentSpeechAbortRef.current === speechAbort) currentSpeechAbortRef.current = null;
+        currentAudioRef.current = null;
+        if (currentAudioUrlRef.current) try { URL.revokeObjectURL(currentAudioUrlRef.current); } catch {}
+        currentAudioUrlRef.current = "";
+        clearTTSAudioGraph();
+        ttsIsActiveRef.current = false;
+        ttsCurrentTextRef.current = "";
+        currentSegmentRef.current = "";
+        setVisualState("idle");
+        setAmbientMusicDucked(false);
+        if (!options.sequence) markVoiceReadyForNextTurn("tts");
+        voiceBlockedUntilRef.current = Date.now() + VOICE_POST_TTS_BLOCK_MS;
+        if (!options.sequence && options.resumeMic !== false) {
+          resumeMicAfterTTS();
+          schedulePostReplyListen();
+        }
+        resolve(ok);
+      };
+      currentSpeechFinishRef.current = finish;
+
+      (async () => {
+        try {
+          const blob = await (options.audioBlobPromise || prepareSpeechBlob(text, { signal: speechAbort.signal }));
+          if (finished) return;
+          if (!blob) throw new Error("TTS stream failed");
+          const audioUrl = URL.createObjectURL(blob);
+          const audio = new Audio(audioUrl);
+          await resumeJarvisAudioContext();
+          if (finished) {
+            URL.revokeObjectURL(audioUrl);
+            return;
+          }
+          const graph = attachJarvisAudioGraph(audio, JARVIS_TTS_VOICE_ID);
+          currentAudioRef.current = audio;
+          currentAudioUrlRef.current = audioUrl;
+          ttsAudioGraphRef.current = graph;
+          try { window.jarvisVoice?.setTTSAnalyser?.(graph?.analyser || null); } catch {}
+          audio.onended = () => finish(true); audio.onerror = () => finish(false);
+          await applyOutputSink(audio).catch(() => {});
+          if (finished) return;
+          await audio.play();
+          options.onPlaybackStart?.(performance.now());
+        } catch (error) {
+          if (finished) return;
+          console.error("Jarvis TTS playback failed", error);
+          setLastError("贾维斯语音播放失败，请检查本地 Piper 模型。");
+          finish(false);
+        }
+      })();
+    });
+  }, [clearTTSAudioGraph, markVoiceReadyForNextTurn, prepareSpeechBlob, rememberSpokenText, resumeMicAfterTTS, schedulePostReplyListen, stopTTSPlayback]);
+  speakReplyRef.current = speakReply;
+
+  const clearReplyPoll = useCallback(() => {
+    if (pollRef.current) window.clearInterval(pollRef.current);
+    pollRef.current = null;
+    pollInFlightRef.current = false;
+  }, []);
+
+  const completeReply = useCallback((text, options = {}) => {
+    const turn = activeTurnRef.current;
+    if (!turn || turn.completed) {
+      reloadAfterEvent();
+      return false;
+    }
+    if (options.turnToken && turn.token !== options.turnToken) return false;
+    turn.completed = true;
+    activeTurnRef.current = null;
+    clearReplyPoll();
+    setSending(false);
+    setVisualState("idle");
+    reloadAfterEvent();
+    if ((options.voice ?? turn.voice ?? lastVoiceTurnRef.current) && text) {
+      speakReply(text).catch(() => {});
+      lastVoiceTurnRef.current = false;
+    }
+    return true;
+  }, [clearReplyPoll, reloadAfterEvent, speakReply]);
+
+  const failActiveTurn = useCallback((message, turnToken = null) => {
+    const turn = activeTurnRef.current;
+    if (turnToken && turn?.token !== turnToken) return false;
+    activeTurnRef.current = null;
+    lastVoiceTurnRef.current = false;
+    visibleStreamRef.current = false;
+    clearReplyPoll();
+    setSending(false);
+    setVisualState("alert");
+    setLastError(message || "运行时错误");
+    if (turn?.voice) schedulePostReplyListen();
+    return true;
+  }, [clearReplyPoll, schedulePostReplyListen]);
+
+  const pollForReply = useCallback((afterId, voice, turnToken) => {
+    clearReplyPoll();
+    const startedAt = Date.now();
+    pollRef.current = window.setInterval(async () => {
+      if (activeTurnRef.current?.token !== turnToken) {
+        clearReplyPoll();
+        return;
+      }
+      if (pollInFlightRef.current) return;
+      pollInFlightRef.current = true;
+      try {
+        const rows = await loadConversations({ commit: false });
+        const reply = rows.find((row) => row.role === "jarvis" && Number(row.id) > afterId);
+        if (reply) {
+          setMessages(rows);
+          completeReply(reply.content, { voice, turnToken });
+          return;
+        }
+        if (Date.now() - startedAt > 95_000) {
+          failActiveTurn("这轮对话超过 95 秒没有返回，输入已释放。", turnToken);
+        }
+      } catch {
+        // transient startup or reload failures should not stop polling
+      } finally {
+        pollInFlightRef.current = false;
+      }
+    }, 1000);
+  }, [clearReplyPoll, completeReply, failActiveTurn, loadConversations]);
+
+  const sendMessage = useCallback(async (payload = null) => {
+    const fromVoice = typeof payload === "object" && payload ? isVoiceChannel(payload.channel || payload.label) : false;
+    const text = typeof payload === "object" && payload ? payload.text : draft;
+    const content = String(text || "").trim();
+    if (!content || sending) return;
+    window.clearTimeout(postReplyListenRef.current);
+    postReplyListenRef.current = null;
+
+    if (/(关闭|停止|关掉|静音).{0,4}(音乐|背景音乐)|\b(?:stop|mute|turn off)\s+(?:the\s+)?music\b/i.test(content)) {
+      await toggleAmbientMusic(false);
+      setMessages((current) => [...current, { id: `music-${Date.now()}`, role: "system", content: "背景音乐已关闭。", channel: "LOCAL" }]);
+      if (fromVoice) try { window.jarvisVoice?.stop?.(); } catch {}
+      return;
+    }
+    if (/(打开|开启|播放).{0,4}(音乐|背景音乐)|\b(?:start|play|turn on)\s+(?:the\s+)?music\b/i.test(content)) {
+      const started = await toggleAmbientMusic(true);
+      setMessages((current) => [...current, { id: `music-${Date.now()}`, role: "system", content: started ? "背景音乐已开启。" : "背景音乐等待首次交互后开启。", channel: "LOCAL" }]);
+      return;
+    }
+
+    if (interfaceModeRef.current !== "active") {
+      if (fromVoice && acceptWakePhrase(content)) return;
+      if (fromVoice) {
+        setVisualState("idle");
+        setVoiceStatusText("未听到唤醒词，请说“嗨 Jarvis”");
+        scheduleWakeListen();
+        return;
+      }
+      enterWorkbench({ listenAfter: false });
+    }
+
+    if (fromVoice) {
+      const normalized = normalizeEchoText(content);
+      const now = Date.now();
+      if (now < voiceBlockedUntilRef.current || isAsrEchoNoise(content)) { try { window.jarvisVoice?.enterPassiveMode?.(); } catch {}; setVoiceActive(false); setVisualState("idle"); setVoiceStatusText("已忽略语音回声或噪声，点击麦克风继续"); schedulePostReplyListen(); return; }
+      if (isLikelySelfEcho(content)) {
+        try { window.jarvisVoice?.enterPassiveMode?.(); } catch {}; setVoiceActive(false); setVisualState("idle");
+        setVoiceStatusText("已忽略回声，点击麦克风继续");
+        schedulePostReplyListen();
+        return;
+      }
+      const lastVoiceSend = lastVoiceSendTextRef.current;
+      if (normalized && lastVoiceSend.text === normalized && now - lastVoiceSend.at < VOICE_REPEAT_GUARD_MS) {
+        try { window.jarvisVoice?.enterPassiveMode?.(); } catch {}; setVoiceActive(false); setVisualState("idle"); setVoiceStatusText("已忽略重复语音，点击麦克风继续"); schedulePostReplyListen();
+        return;
+      }
+      lastVoiceSendTextRef.current = { text: normalized, at: now };
+    }
+
+    const workPrompt = inferredEngineeringPrompt(content);
+    if (workPrompt) {
+      setDraft("");
+      setLastError("");
+      setVisualState("thinking");
+      setMessages((current) => [...current, {
+        id: `engineering-${Date.now()}`,
+        role: "user",
+        content,
+        channel: fromVoice ? "语音 / 工程台" : "工程台",
+        timestamp: new Date().toISOString()
+      }]);
+      try {
+        await startEngineeringTask(workPrompt);
+        setMessages((current) => [...current, {
+          id: `engineering-accepted-${Date.now()}`,
+          role: "system",
+          content: "工程任务已交给 Grok Build，执行模型为 DeepSeek V4 Pro。",
+          channel: "GROK BUILD"
+        }]);
+        setVisualState("idle");
+        if (fromVoice) {
+          await speakReplyRef.current?.("Engineering task accepted.\n\n[中文翻译]\n工程任务已接收。");
+          schedulePostReplyListen();
+        }
+      } catch (error) {
+        setVisualState("alert");
+        setLastError(error.message || "工程任务提交失败");
+        if (fromVoice) schedulePostReplyListen();
+      }
+      return;
+    }
+
+    const channel = fromVoice ? "语音识别" : "TUI";
+    const afterId = maxMessageIdRef.current;
+    const turnToken = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    activeTurnRef.current = { token: turnToken, afterId, voice: fromVoice, completed: false };
+    visibleStreamRef.current = false;
+    lastVoiceTurnRef.current = fromVoice;
+    setDraft("");
+    setSending(true);
+    setLastError("");
+    setVisualState(fromVoice ? "listening" : "thinking");
+    setMessages((current) => [
+      ...current,
+      {
+        id: `local-${Date.now()}`,
+        role: "user",
+        content,
+        channel,
+        timestamp: new Date().toISOString()
+      }
+    ]);
+
+    try {
+      const sent = await apiFetch("/message", { method: "POST", body: JSON.stringify({ from_id: USER_ID, channel, content }) });
+      if (sent?.ignored) {
+        activeTurnRef.current = null;
+        lastVoiceTurnRef.current = false;
+        clearReplyPoll();
+        setSending(false);
+        setVisualState("idle");
+        setVoiceStatusText("已忽略重复语音，点击麦克风继续");
+        if (fromVoice) schedulePostReplyListen();
+        refreshAll().catch(() => {});
+        return;
+      }
+      setVisualState("thinking");
+      pollForReply(afterId, fromVoice, turnToken);
+    } catch (error) {
+      failActiveTurn(error.message || "发送失败", turnToken);
+      setMessages((current) => [
+        ...current,
+        { id: `error-${Date.now()}`, role: "system", content: error.message || "发送失败", channel: "SYSTEM" }
+      ]);
+      refreshAll().catch(() => {});
+    }
+  }, [acceptWakePhrase, apiFetch, clearReplyPoll, draft, enterWorkbench, failActiveTurn, inferredEngineeringPrompt, isLikelySelfEcho, pollForReply, refreshAll, schedulePostReplyListen, scheduleWakeListen, sending, startEngineeringTask, toggleAmbientMusic]);
+
+  sendMessageRef.current = sendMessage;
+
+  const handleCoreEvent = useCallback((payload) => {
+    const type = payload?.type;
+    const data = payload?.data || {};
+    if (type === "connected") {
+      setConnection({ state: "online", detail: "核心在线" });
+    } else if (type === "message_in") {
+      setVisualState(isVoiceChannel(data.channel) ? "listening" : "thinking");
+      reloadAfterEvent();
+    } else if (type === "stream_start") {
+      visibleStreamRef.current = !!data.plainReply;
+      if (activeTurnRef.current || data.plainReply) {
+        setSending(true);
+        setVisualState("thinking");
+      }
+      if (data.plainReply) {
+        setMessages((current) => [
+          ...current.filter((item) => item.id !== "live"),
+          { id: "live", role: "jarvis", content: "", channel: "LIVE" }
+        ]);
+      }
+    } else if (type === "stream_chunk") {
+      if (!visibleStreamRef.current) return;
+      setVisualState("thinking");
+      setMessages((current) => {
+        const chunk = cleanStreamChunk(data.text || "");
+        const existing = current.find((item) => item.id === "live");
+        if (!existing) return [...current, { id: "live", role: "jarvis", content: chunk, channel: "LIVE" }];
+        return current.map((item) => item.id === "live" ? { ...item, content: `${item.content || ""}${chunk}` } : item);
+      });
+    } else if (type === "stream_end") {
+      visibleStreamRef.current = false;
+      reloadAfterEvent();
+    } else if (type === "tool_call") {
+      reloadAfterEvent();
+    } else if (type === "grok_build_task") {
+      setGrokBuildStatus((current) => ({ ...(current || {}), ok: true, available: true, task: data }));
+    } else if (type === "response") {
+      completeReply(data.content || "");
+    } else if (type === "protocol_violation" && /fallback_delivered/.test(String(data.reason || ""))) {
+      reloadAfterEvent();
+    } else if (type === "error" || type === "protocol_violation") {
+      failActiveTurn(data.error || data.reason || "运行时错误");
+      reloadAfterEvent();
+    } else if (type === "activated" || type === "startup_environment_ready" || type === "idle" || type === "quota") {
+      refreshAll().catch(() => {});
+    }
+  }, [completeReply, failActiveTurn, refreshAll, reloadAfterEvent]);
+
+  const connectEvents = useCallback(() => {
+    eventSourceRef.current?.close?.();
+    const source = new EventSource(`${api}/events`);
+    eventSourceRef.current = source;
+
+    source.onopen = () => setConnection({ state: "online", detail: "事件流在线" });
+    source.onerror = () => setConnection({ state: "degraded", detail: "事件流重连中" });
+    source.onmessage = (event) => {
+      let payload = null;
+      try { payload = JSON.parse(event.data || "{}"); } catch { return; }
+      handleCoreEvent(payload);
+    };
+  }, [api, handleCoreEvent]);
+
+  useEffect(() => {
+    let disposed = false;
+    const install = async () => {
+      let mode = "";
+      try { mode = await window.jarvisDesktop?.getProbeMode?.() || ""; } catch {}
+      if (disposed || mode !== "turn-lifecycle") return;
+      window.__jarvisTurnProbe = {
+      begin: ({ voice = false, withPoll = false } = {}) => {
+        const token = `probe-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        activeTurnRef.current = { token, afterId: maxMessageIdRef.current, voice, completed: false };
+        clearReplyPoll();
+        if (withPoll) pollRef.current = window.setInterval(() => {}, 60_000);
+        visibleStreamRef.current = false;
+        lastVoiceTurnRef.current = voice;
+        setLastError("");
+        setSending(true);
+        setVisualState("thinking");
+        return token;
+      },
+      emit: (type, data = {}) => handleCoreEvent({ type, data }),
+      speakAndResume: async () => {
+        try { window.jarvisVoice?.stop?.(); } catch {}
+        await speakReply(WAKE_GREETING, { force: true });
+        return true;
+      },
+      snapshot: () => ({
+        activeTurn: activeTurnRef.current ? { ...activeTurnRef.current } : null,
+        pollActive: !!pollRef.current,
+        visibleStream: visibleStreamRef.current,
+        sending,
+        lastError,
+        voiceActive: !!window.jarvisVoice?.isActive?.(),
+        voiceStatusText,
+        postReplyListenMetrics: { ...postReplyListenMetricsRef.current },
+        messages: messages.map((item) => ({ id: item.id, role: item.role, content: item.content, channel: item.channel })),
+        bodyText: document.body.innerText || ""
+      })
+      };
+    };
+    install();
+    return () => {
+      disposed = true;
+      delete window.__jarvisTurnProbe;
+    };
+  }, [clearReplyPoll, handleCoreEvent, lastError, messages, sending, speakReply, voiceStatusText]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (window.jarvisDesktop?.getBackendPort) {
+          const port = await window.jarvisDesktop.getBackendPort();
+          if (!cancelled && port) setApi(`http://127.0.0.1:${port}`);
+        } else if (!cancelled) {
+          setApi(DEFAULT_API);
+        }
+      } catch {
+        if (!cancelled) setApi(DEFAULT_API);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!api) return;
+    refreshAll()
+      .then(() => loadConversations())
+      .catch((error) => {
+        setConnection({ state: "degraded", detail: error.message || "核心服务未响应" });
+        setLastError(error.message || "核心服务未响应");
+      });
+    connectEvents();
+    return () => {
+      eventSourceRef.current?.close?.();
+      if (pollRef.current) window.clearInterval(pollRef.current);
+    };
+  }, [connectEvents, loadConversations, refreshAll]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages, sending]);
+
+  useEffect(() => {
+    if (!api || voiceInitializedRef.current) return undefined;
+    voiceInitializedRef.current = true;
+    const timer = window.setTimeout(() => {
+      initVoicePanel({
+        btnId: "voice-toggle",
+        panelId: "voice-panel",
+        canvasId: "voice-canvas",
+        statusId: "voice-status",
+        transcriptId: "voice-transcript",
+        getChatInput: () => inputRef.current,
+        getSendBtn: () => null,
+        getSendMessage: (payload) => sendMessageRef.current?.(payload),
+        getLang: () => "zh-CN",
+        getAutoSend: () => true,
+        getAutoMic: () => true,
+        getSingleTurn: () => true
+      });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [api]);
+
+  useEffect(() => {
+    const onVoiceState = (event) => {
+      const active = !!event.detail?.active;
+      setVoiceActive(active);
+      setVoiceStatusText(event.detail?.statusText || (active ? "正在聆听" : "点按语音开始"));
+      if (active && wakeMetricsRef.current.listenRequestedAt && !wakeMetricsRef.current.listeningAt) {
+        wakeMetricsRef.current.listeningAt = performance.now();
+      }
+      if (active) setLastError("");
+      if (active && !sending) setVisualState("listening");
+      if (!active && !sending) {
+        setVisualState("idle");
+        if (interfaceModeRef.current === "standby" && !wakeAcceptedRef.current) scheduleWakeListen();
+      }
+    };
+    window.addEventListener("jarvis:voice-state", onVoiceState);
+    return () => window.removeEventListener("jarvis:voice-state", onVoiceState);
+  }, [scheduleWakeListen, sending]);
+
+  useEffect(() => {
+    const onVoiceTranscript = (event) => {
+      if (interfaceModeRef.current !== "standby" || wakeAcceptedRef.current) return;
+      const text = String(event.detail?.text || event.detail?.accumulated || "").trim();
+      if (text) {
+        try {
+          const recent = JSON.parse(localStorage.getItem("jarvis-wake-diagnostics") || "[]");
+          recent.unshift({ at: new Date().toISOString(), text, final: !!event.detail?.final, matched: isWakePhrase(text, { loose: true }) });
+          localStorage.setItem("jarvis-wake-diagnostics", JSON.stringify(recent.slice(0, 30)));
+        } catch {}
+      }
+      if (!text || !isWakePhrase(text, { loose: true })) return;
+      try { window.jarvisVoice?.resetTranscriptAccumulation?.(); } catch {}
+      try { window.jarvisVoice?.enterPassiveMode?.(); } catch {}
+      acceptWakePhrase(text);
+    };
+    window.addEventListener("jarvis:voice-transcript", onVoiceTranscript);
+    return () => window.removeEventListener("jarvis:voice-transcript", onVoiceTranscript);
+  }, [acceptWakePhrase]);
+
+  useEffect(() => {
+    const onVoiceError = (event) => {
+      const message = event.detail?.message || "语音没有识别出可发送的内容";
+      setLastError(message);
+      setVisualState("alert");
+      if (interfaceModeRef.current === "standby") scheduleWakeListen();
+    };
+    window.addEventListener("jarvis:voice-error", onVoiceError);
+    return () => window.removeEventListener("jarvis:voice-error", onVoiceError);
+  }, [scheduleWakeListen]);
+
+  useEffect(() => {
+    window.stopTTS = () => { stopTTSPlayback(); resumeMicAfterTTS(); };
+    window.duckTTS = () => { if (currentAudioRef.current) currentAudioRef.current.volume = 0.18; };
+    window.unduckTTS = () => { if (currentAudioRef.current) currentAudioRef.current.volume = 1; };
+    window.resumeTTSIfNoSpeech = window.unduckTTS;
+    return () => {
+      delete window.stopTTS;
+      delete window.duckTTS;
+      delete window.unduckTTS;
+      delete window.resumeTTSIfNoSpeech;
+    };
+  }, [resumeMicAfterTTS, stopTTSPlayback]);
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.code !== "Space") return;
+      const active = document.activeElement;
+      const typing = active && ["INPUT", "TEXTAREA", "SELECT"].includes(active.tagName);
+      if (typing || event.repeat) return;
+      event.preventDefault();
+      window.jarvisVoice?.pttStart?.();
+    };
+    const onKeyUp = (event) => {
+      if (event.code !== "Space") return;
+      const active = document.activeElement;
+      const typing = active && ["INPUT", "TEXTAREA", "SELECT"].includes(active.tagName);
+      if (typing) return;
+      event.preventDefault();
+      window.jarvisVoice?.pttEnd?.();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, []);
+
+  const latestJarvisText = useMemo(() => {
+    return [...messages].reverse().find((item) => item.role === "jarvis")?.content || "";
+  }, [messages]);
+
+  const caps = readiness?.capabilities || {};
+  const activationPending = activation === null;
+  const readinessPending = readiness === null;
+  const coreReady = !!(status?.running && activation?.activated);
+  const coreDetail = activationPending ? "同步中" : (activation?.model || "未激活");
+  const voiceDetail = readinessPending ? "同步中" : (caps.asr?.provider || "未配置");
+  const deepSeekValue = activationPending ? "同步中" : (activation?.activated ? "在线" : "待配置");
+  const deepSeekDetail = activationPending ? "等待核心状态" : (activation?.model || activation?.provider || "未激活");
+  const asrValue = readinessPending ? "同步中" : (caps.asr?.ready ? "可用" : "缺失");
+  const asrDetail = readinessPending ? "等待语音状态" : (caps.asr?.provider || "未配置");
+  const ttsValue = readinessPending ? "同步中" : (caps.tts?.ready ? "可用" : "缺失");
+  const ttsDetail = readinessPending ? "等待语音状态" : (caps.tts?.provider || "Jarvis");
+  const queueUser = status?.queue?.user ?? 0;
+  const queueBackground = status?.queue?.background ?? 0;
+
+  return (
+    <main className={cls("app-shell", `mode-${interfaceMode}`)}>
+      <header className="studio-header">
+        <div className="header-brand">
+          <div className="brand-title">
+            <span>LOCAL AGENT CONTROL ROOM</span>
+            <h1>JARVIS</h1>
+          </div>
+          <ClockReadout variant="header" />
+        </div>
+        <div className="header-status">
+          <StatusPill ok={connection.state === "online"} label="链路" detail={connection.detail} compact />
+          <StatusPill ok={coreReady} label="核心" detail={coreDetail} compact />
+          <StatusPill ok={!!caps.asr?.ready} label="语音" detail={voiceDetail} compact />
+        </div>
+        <div className="header-tools">
+          <div className="module-strip" aria-label="工作入口">
+            {LINKS.filter((item) => ["settings", "engineering"].includes(item.action) || item.label === "记忆库").map((item) => <ModuleLink
+              key={item.path || item.action}
+              item={item}
+              api={api}
+              active={item.action === "engineering" && engineeringOpen}
+              onSettings={() => setDrawerOpen(true)}
+              onEngineering={() => setEngineeringOpen((current) => !current)}
+            />)}
+          </div>
+          <div className="header-actions">
+          <button className={cls("icon-btn", musicEnabled && "active")} type="button" onClick={() => toggleAmbientMusic()} aria-pressed={musicEnabled} aria-label={musicEnabled ? "关闭背景音乐" : "开启背景音乐"} title={musicEnabled ? "关闭背景音乐" : "开启背景音乐"}>
+            {musicEnabled ? <Music2 size={18} /> : <VolumeX size={18} />}
+          </button>
+          <button className="icon-btn" type="button" disabled={refreshing} aria-busy={refreshing} onClick={() => refreshAll().then(loadConversations).catch(() => {})} aria-label="刷新状态">
+            <RefreshCw className={cls(refreshing && "spin")} size={18} />
+          </button>
+          <button className="icon-btn" type="button" onClick={() => setDrawerOpen(true)} aria-label="打开设置">
+            <Settings2 size={18} />
+          </button>
+          </div>
+        </div>
+      </header>
+
+      <section className={cls("monitor-stage", `stage-${visualState}`, `mode-${interfaceMode}`, engineeringOpen && "engineering-open")} aria-label="Jarvis 工作界面">
+        <div className="stage-grid-layer" />
+        <div className="stage-corners" aria-hidden="true"><span /><span /><span /><span /></div>
+        <div className="stage-topline">
+          <span>{interfaceMode === "standby" ? "STANDBY" : "LOCAL ONLINE"}</span>
+          <i />
+          <span>{interfaceMode === "waking" ? "WAKE UP" : "DIRECT VOICE"}</span>
+          <i />
+          <span>{voiceActive ? "LISTENING" : interfaceMode === "active" ? "ONLINE" : "SLEEP"}</span>
+        </div>
+
+        <StandbyLayer />
+
+        <HudTerminal messages={messages} sending={sending} lastError={lastError} />
+
+        <JarvisWorkbench
+          visualState={visualState}
+          interfaceMode={interfaceMode}
+          readiness={readiness}
+          status={status}
+          activation={activation}
+          connection={connection}
+          grokReady={!!grokBuildStatus?.available}
+          audioLevel={audioLevel}
+        />
+
+        <AnimatePresence>
+          <EngineeringConsole
+            status={grokBuildStatus}
+            open={engineeringOpen}
+            onClose={() => setEngineeringOpen(false)}
+            onRun={startEngineeringTask}
+            onCancel={cancelEngineeringTask}
+            onPermission={answerEngineeringPermission}
+          />
+        </AnimatePresence>
+
+        <AgentPortrait
+          state={visualState}
+          voiceStatusText={voiceStatusText}
+          sending={sending}
+          mode={interfaceMode}
+        />
+
+        <AcuiWorkbenchLayer cards={acuiCards} connected={acuiConnected} onDismiss={dismissAcuiCard} />
+
+        <IntelligenceRail
+          api={api}
+          grokStatus={grokBuildStatus}
+          onEngineering={() => setEngineeringOpen(true)}
+          signals={[
+            { label: "核心引擎", code: "CORE ENGINE", value: deepSeekValue, detail: deepSeekDetail, tone: activation?.activated ? "ok" : "warn", icon: Cpu },
+            { label: "语音识别", code: "ASR", value: asrValue, detail: asrDetail, tone: caps.asr?.ready ? "ok" : "warn", icon: Mic },
+            { label: "语音合成", code: "TTS", value: ttsValue, detail: ttsDetail, tone: caps.tts?.ready ? "ok" : "warn", icon: Radio },
+            { label: "记忆系统", code: "MEMORY", value: `${status?.memory_count ?? caps.memory?.count ?? "--"}`, detail: "同步状态", tone: caps.memory?.ready ? "ok" : "neutral", icon: Database },
+          ]}
+        />
+
+        <form
+          className="command-dock"
+          onSubmit={(event) => {
+            event.preventDefault();
+            sendMessage();
+          }}
+        >
+          <button
+            id="voice-toggle"
+            className={cls("voice-command", voiceActive && "active")}
+            type="button"
+            aria-pressed={voiceActive}
+            aria-label={voiceActive ? "结束语音监听" : "开始语音监听"}
+            title="点按开始或结束语音，也可以按住空格说话"
+          >
+            {voiceActive ? <MicOff size={18} /> : <Mic size={18} />}
+            <span className="sr-only">{voiceActive ? "结束语音" : "语音"}</span>
+          </button>
+          <div className={cls("dock-wave", voiceActive && "active")} aria-hidden="true">{Array.from({ length: 14 }, (_, index) => <i key={index} style={{ "--bar": `${24 + ((index * 17) % 66)}%` }} />)}</div>
+          <div className="dock-input">
+            <Activity size={16} />
+            <textarea
+              ref={inputRef}
+              aria-label="给 Jarvis 的指令"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  sendMessage();
+                }
+              }}
+              placeholder="输入要 Jarvis 做的事"
+              rows={1}
+            />
+          </div>
+          <button className="primary send" type="submit" disabled={sending || !draft.trim()}>
+            {sending ? <Loader2 className="spin" size={17} /> : <Send size={17} />}
+            发送
+          </button>
+          <button className="secondary replay" type="button" disabled={!latestJarvisText || sending} aria-label="重播上一条 Jarvis 回复" onClick={() => speakReply(latestJarvisText)}>
+            <Volume2 size={17} />
+            重播
+          </button>
+          <button className={cls("secondary", "music-command", musicEnabled && "active")} type="button" onClick={() => toggleAmbientMusic()} aria-pressed={musicEnabled} aria-label={musicEnabled ? "关闭背景音乐" : "开启背景音乐"}>
+            {musicEnabled ? <Music2 size={17} /> : <VolumeX size={17} />}
+            音乐
+          </button>
+        </form>
+        <div ref={messagesEndRef} className="scroll-anchor" />
+      </section>
+
+      <footer className="system-footer">
+        <span><Zap size={13} /> 本地桌面 Agent / DeepSeek / 单轮语音</span>
+        <span>{voiceStatusText}</span>
+      </footer>
+
+      <SettingsDrawer
+        open={drawerOpen}
+        onClose={closeSettings}
+        activation={activation}
+        readiness={readiness}
+        api={api}
+        refreshAll={refreshAll}
+      />
+    </main>
+  );
+}
+
+createRoot(document.getElementById("root")).render(<App />);

@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>JARVIS - Cinematic Particle Core V3</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --cyan: #46f8ff;
+      --teal: #00d6c6;
+      --blue: #085dff;
+      --amber: #ffd07a;
+      --ink: #eafcff;
+      --muted: rgba(170, 227, 236, 0.64);
+      --void: #000306;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      color: var(--ink);
+      font-family: "Bahnschrift", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+    }
+
+    body {
+      min-height: 100dvh;
+      position: relative;
+      background:
+        radial-gradient(ellipse at 50% 50%, rgba(1, 63, 74, 0.5), transparent 30%),
+        radial-gradient(ellipse at 50% 95%, rgba(0, 214, 198, 0.26), transparent 44%),
+        linear-gradient(180deg, #000102 0%, #020d12 51%, #000204 100%);
+    }
+
+    canvas {
+      display: block;
+    }
+
+    .film {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(ellipse at center, transparent 0 49%, rgba(0, 0, 0, 0.28) 72%, rgba(0, 0, 0, 0.74) 100%),
+        linear-gradient(90deg, rgba(0, 0, 0, 0.7), transparent 18%, transparent 82%, rgba(0, 0, 0, 0.72));
+    }
+
+    #atmosphere,
+    #core,
+    #hud {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    #atmosphere {
+      z-index: 1;
+      filter: saturate(1.12);
+    }
+
+    #core {
+      z-index: 2;
+    }
+
+    #hud {
+      z-index: 3;
+      pointer-events: none;
+    }
+
+    .grain,
+    .scan,
+    .lens {
+      position: fixed;
+      inset: 0;
+      z-index: 4;
+      pointer-events: none;
+    }
+
+    .grain {
+      opacity: 0.11;
+      background-image:
+        radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.18) 0 1px, transparent 1.6px),
+        radial-gradient(circle at 72% 64%, rgba(255, 255, 255, 0.12) 0 1px, transparent 1.9px);
+      background-size: 7px 7px, 11px 11px;
+      mix-blend-mode: screen;
+    }
+
+    .scan {
+      opacity: 0.095;
+      background-image: linear-gradient(0deg, rgba(70, 248, 255, 0.28) 1px, transparent 1px);
+      background-size: 100% 8px;
+      mix-blend-mode: screen;
+    }
+
+    .lens {
+      box-shadow:
+        inset 0 0 180px rgba(0, 0, 0, 0.9),
+        inset 0 0 24px rgba(70, 248, 255, 0.08);
+    }
+
+    .chrome {
+      position: fixed;
+      inset: 24px 30px;
+      z-index: 5;
+      pointer-events: none;
+      color: var(--muted);
+      font-family: "JetBrains Mono", "IBM Plex Mono", Consolas, "Microsoft YaHei UI", monospace;
+      font-size: 11px;
+      letter-spacing: 0.02em;
+    }
+
+    .corner {
+      position: absolute;
+      width: 128px;
+      height: 86px;
+      opacity: 0.58;
+    }
+
+    .corner::before,
+    .corner::after {
+      content: "";
+      position: absolute;
+      background: rgba(70, 248, 255, 0.38);
+      box-shadow: 0 0 18px rgba(70, 248, 255, 0.26);
+    }
+
+    .corner::before {
+      width: 100%;
+      height: 1px;
+    }
+
+    .corner::after {
+      width: 1px;
+      height: 100%;
+    }
+
+    .tl {
+      left: 0;
+      top: 0;
+    }
+
+    .tr {
+      right: 0;
+      top: 0;
+      transform: scaleX(-1);
+    }
+
+    .bl {
+      left: 0;
+      bottom: 0;
+      transform: scaleY(-1);
+    }
+
+    .br {
+      right: 0;
+      bottom: 0;
+      transform: scale(-1);
+    }
+
+    .whisper {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      display: grid;
+      gap: 7px;
+      max-width: min(360px, 34vw);
+      opacity: 0.82;
+    }
+
+    .whisper b {
+      color: rgba(234, 252, 255, 0.88);
+      font-weight: 500;
+      font-size: 13px;
+    }
+
+    .whisper span {
+      color: rgba(170, 227, 236, 0.62);
+      line-height: 1.5;
+    }
+
+    .wake {
+      position: absolute;
+      left: 50%;
+      bottom: 22px;
+      width: min(520px, 44vw);
+      transform: translateX(-50%);
+      display: grid;
+      gap: 8px;
+      justify-items: center;
+      text-align: center;
+      opacity: 0.88;
+    }
+
+    .wake strong {
+      font-size: clamp(20px, 2.2vw, 34px);
+      line-height: 1;
+      font-weight: 500;
+      color: rgba(234, 252, 255, 0.92);
+      text-shadow: 0 0 24px rgba(70, 248, 255, 0.5);
+    }
+
+    .wake small {
+      color: rgba(170, 227, 236, 0.62);
+    }
+
+    .pulse-line {
+      width: min(360px, 90%);
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(70, 248, 255, 0.74), rgba(255, 208, 122, 0.44), transparent);
+      box-shadow: 0 0 20px rgba(70, 248, 255, 0.44);
+      animation: pulse-line 3.4s cubic-bezier(0.32, 0.72, 0, 1) infinite;
+    }
+
+    .summary {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      display: grid;
+      gap: 8px;
+      max-width: min(360px, 34vw);
+      text-align: right;
+      opacity: 0.78;
+    }
+
+    .summary b {
+      color: rgba(234, 252, 255, 0.86);
+      font-weight: 500;
+      font-size: 13px;
+    }
+
+    .summary span {
+      color: rgba(170, 227, 236, 0.62);
+      line-height: 1.5;
+    }
+
+    @keyframes pulse-line {
+      0%,
+      100% {
+        opacity: 0.42;
+        transform: scaleX(0.72);
+      }
+      50% {
+        opacity: 1;
+        transform: scaleX(1);
+      }
+    }
+
+    @media (max-width: 860px) {
+      .chrome {
+        inset: 16px;
+      }
+
+      .corner {
+        width: 74px;
+        height: 54px;
+      }
+
+      .whisper,
+      .summary {
+        display: none;
+      }
+
+      .wake {
+        width: 78vw;
+        bottom: 20px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="film" aria-label="Jarvis cinematic interface">
+    <canvas id="atmosphere" aria-hidden="true"></canvas>
+    <canvas id="core" aria-hidden="true"></canvas>
+    <canvas id="hud" aria-hidden="true"></canvas>
+
+    <div class="grain" aria-hidden="true"></div>
+    <div class="scan" aria-hidden="true"></div>
+    <div class="lens" aria-hidden="true"></div>
+
+    <section class="chrome" aria-label="Jarvis overlay information">
+      <i class="corner tl" aria-hidden="true"></i>
+      <i class="corner tr" aria-hidden="true"></i>
+      <i class="corner bl" aria-hidden="true"></i>
+      <i class="corner br" aria-hidden="true"></i>
+
+      <div class="whisper">
+        <b>ENVIRONMENT</b>
+        <span>28 C / 多云，风速 12 km/h。早间简报已准备。</span>
+        <span>唤醒词：你好，贾维斯。</span>
+      </div>
+
+      <div class="wake">
+        <div class="pulse-line" aria-hidden="true"></div>
+        <strong>我在。</strong>
+        <small>等待语音输入</small>
+      </div>
+
+      <div class="summary">
+        <b>INTELLIGENCE</b>
+        <span>AI Hot 待接入：模型、产品、融资、开源动态。</span>
+        <span>DeepSeek API 端口预留。</span>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const atmosphere = document.getElementById("atmosphere");
+    const core = document.getElementById("core");
+    const hud = document.getElementById("hud");
+    const aCtx = atmosphere.getContext("2d", { alpha: true });
+    const cCtx = core.getContext("2d", { alpha: true });
+    const hCtx = hud.getContext("2d", { alpha: true });
+    const TAU = Math.PI * 2;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    let w = 0;
+    let h = 0;
+    let dpr = 1;
+    let cx = 0;
+    let cy = 0;
+    let radius = 280;
+    let fog = [];
+    let stars = [];
+    let ring = [];
+    let veil = [];
+    let word = [];
+    let globe = [];
+    let sparks = [];
+
+    function rand(min, max) {
+      return min + Math.random() * (max - min);
+    }
+
+    function clamp(v, min, max) {
+      return Math.max(min, Math.min(max, v));
+    }
+
+    function setupCanvas(canvas, ctx) {
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function resize() {
+      w = window.innerWidth;
+      h = window.innerHeight;
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      setupCanvas(atmosphere, aCtx);
+      setupCanvas(core, cCtx);
+      setupCanvas(hud, hCtx);
+      cx = w / 2;
+      cy = h * 0.48;
+      radius = Math.min(w, h) * 0.36;
+      build();
+    }
+
+    function build() {
+      fog = Array.from({ length: 64 }, () => ({
+        x: rand(w * 0.12, w * 0.88),
+        y: rand(h * 0.52, h * 1.06),
+        r: rand(70, 260),
+        a: rand(0.018, 0.09),
+        p: rand(0, TAU),
+        s: rand(0.00002, 0.00009)
+      }));
+
+      stars = Array.from({ length: Math.floor(clamp(w * h / 2100, 420, 1100)) }, () => ({
+        x: rand(0, w),
+        y: rand(0, h),
+        z: rand(0.28, 1),
+        a: rand(0.04, 0.24),
+        p: rand(0, TAU)
+      }));
+
+      ring = Array.from({ length: Math.floor(clamp(radius * 20, 5200, 9200)) }, () => {
+        const lane = Math.random();
+        return {
+          angle: rand(0, TAU),
+          r: radius * rand(lane > 0.8 ? 0.92 : 0.96, lane > 0.8 ? 1.1 : 1.035),
+          size: rand(0.45, lane > 0.82 ? 1.65 : 1.05),
+          a: rand(0.12, lane > 0.8 ? 0.82 : 0.52),
+          p: rand(0, TAU),
+          s: rand(0.00003, 0.00014) * (Math.random() > 0.42 ? 1 : -1),
+          band: lane,
+          wobble: rand(1, 14)
+        };
+      });
+
+      veil = Array.from({ length: Math.floor(clamp(radius * 12, 3000, 5600)) }, () => ({
+        angle: rand(0, TAU),
+        r: Math.sqrt(Math.random()) * radius * rand(0.24, 0.86),
+        size: rand(0.35, 1.15),
+        a: rand(0.035, 0.26),
+        p: rand(0, TAU),
+        s: rand(0.00001, 0.00007),
+        yScale: rand(0.78, 0.98)
+      }));
+
+      globe = Array.from({ length: Math.floor(clamp(radius * 6.6, 1700, 3300)) }, (_, i) => {
+        const v = i / Math.floor(clamp(radius * 6.6, 1700, 3300));
+        const theta = i * 2.399963 + rand(-0.02, 0.02);
+        const z = 1 - 2 * v;
+        const rr = Math.sqrt(Math.max(0, 1 - z * z));
+        return {
+          x: Math.cos(theta) * rr,
+          y: Math.sin(theta) * rr,
+          z,
+          size: rand(0.35, 1.05),
+          a: rand(0.08, 0.44),
+          p: rand(0, TAU)
+        };
+      });
+
+      sparks = Array.from({ length: 150 }, () => ({
+        angle: rand(0, TAU),
+        r: rand(radius * 0.35, radius * 1.02),
+        len: rand(9, 32),
+        a: rand(0.08, 0.42),
+        s: rand(0.00012, 0.00032),
+        p: rand(0, TAU)
+      }));
+
+      word = buildWord();
+    }
+
+    function buildWord() {
+      const off = document.createElement("canvas");
+      const ox = off.getContext("2d");
+      const ow = 1200;
+      const oh = 290;
+      off.width = ow;
+      off.height = oh;
+      ox.clearRect(0, 0, ow, oh);
+      ox.fillStyle = "#fff";
+      ox.textAlign = "center";
+      ox.textBaseline = "middle";
+      ox.save();
+      ox.translate(ow / 2, oh / 2);
+      ox.transform(1, -0.045, -0.19, 1, 0, 0);
+      ox.font = "900 170px Bahnschrift, Impact, sans-serif";
+      ox.fillText("JARVIS", 0, 12);
+      ox.restore();
+      const data = ox.getImageData(0, 0, ow, oh).data;
+      const scale = (radius * 1.98) / ow;
+      const step = radius > 330 ? 3 : 4;
+      const pts = [];
+
+      for (let y = 0; y < oh; y += step) {
+        for (let x = 0; x < ow; x += step) {
+          const alpha = data[(y * ow + x) * 4 + 3];
+          if (alpha > 58 && Math.random() < 0.52) {
+            pts.push({
+              x: cx + (x - ow / 2) * scale,
+              y: cy + (y - oh / 2) * scale * 0.92,
+              size: rand(0.68, 1.75),
+              a: rand(0.42, 0.95) * (alpha / 255),
+              p: rand(0, TAU),
+              j: rand(0.55, 3.1),
+              hot: Math.random() > 0.987
+            });
+          }
+        }
+      }
+
+      const max = Math.floor(clamp(radius * 17.4, 4400, 8500));
+      while (pts.length > max) {
+        pts.splice(Math.floor(Math.random() * pts.length), 1);
+      }
+      return pts;
+    }
+
+    function atmosphereFrame(t) {
+      aCtx.clearRect(0, 0, w, h);
+      aCtx.save();
+      aCtx.globalCompositeOperation = "lighter";
+
+      const horizon = aCtx.createLinearGradient(0, h * 0.48, 0, h);
+      horizon.addColorStop(0, "rgba(0, 0, 0, 0)");
+      horizon.addColorStop(0.62, "rgba(0, 214, 198, 0.12)");
+      horizon.addColorStop(1, "rgba(70, 248, 255, 0.18)");
+      aCtx.fillStyle = horizon;
+      aCtx.fillRect(0, 0, w, h);
+
+      aCtx.filter = "blur(14px)";
+      for (const f of fog) {
+        const x = f.x + Math.sin(t * f.s + f.p) * 54;
+        const y = f.y + Math.cos(t * f.s * 0.7 + f.p) * 20;
+        const g = aCtx.createRadialGradient(x, y, 0, x, y, f.r);
+        g.addColorStop(0, `rgba(70, 248, 255, ${f.a})`);
+        g.addColorStop(0.43, `rgba(0, 214, 198, ${f.a * 0.48})`);
+        g.addColorStop(1, "rgba(70, 248, 255, 0)");
+        aCtx.fillStyle = g;
+        aCtx.beginPath();
+        aCtx.arc(x, y, f.r, 0, TAU);
+        aCtx.fill();
+      }
+      aCtx.filter = "none";
+
+      for (const s of stars) {
+        const twinkle = s.a * (0.64 + Math.sin(t * 0.001 + s.p) * 0.36);
+        aCtx.globalAlpha = twinkle;
+        aCtx.fillStyle = "#46f8ff";
+        aCtx.fillRect(s.x, s.y, s.z * 1.25, s.z * 1.25);
+      }
+
+      aCtx.globalAlpha = 1;
+      aCtx.restore();
+    }
+
+    function drawCore(t) {
+      cCtx.clearRect(0, 0, w, h);
+      cCtx.save();
+      cCtx.globalCompositeOperation = "lighter";
+
+      const bloom = cCtx.createRadialGradient(cx, cy, radius * 0.1, cx, cy, radius * 1.25);
+      bloom.addColorStop(0, "rgba(70, 248, 255, 0.22)");
+      bloom.addColorStop(0.22, "rgba(0, 214, 198, 0.11)");
+      bloom.addColorStop(0.74, "rgba(8, 93, 255, 0.045)");
+      bloom.addColorStop(1, "rgba(70, 248, 255, 0)");
+      cCtx.fillStyle = bloom;
+      cCtx.beginPath();
+      cCtx.arc(cx, cy, radius * 1.25, 0, TAU);
+      cCtx.fill();
+
+      cCtx.lineWidth = 1;
+      for (let i = 0; i < 8; i++) {
+        const r = radius * (0.2 + i * 0.105) * (1 + Math.sin(t * 0.0007 + i) * 0.012);
+        cCtx.strokeStyle = `rgba(70, 248, 255, ${i > 5 ? 0.2 : 0.09})`;
+        cCtx.beginPath();
+        cCtx.ellipse(cx, cy, r * (1.03 + i * 0.01), r * (0.98 - i * 0.004), t * 0.00003 * (i + 1), 0, TAU);
+        cCtx.stroke();
+      }
+
+      drawGlobe(t);
+      drawVeil(t);
+      drawWord(t);
+      drawRing(t);
+      drawSparks(t);
+      cCtx.restore();
+    }
+
+    function drawGlobe(t) {
+      const gr = radius * 0.235;
+      const a = t * 0.00028;
+      const b = t * 0.00017;
+
+      cCtx.strokeStyle = "rgba(70, 248, 255, 0.15)";
+      cCtx.lineWidth = 1;
+      for (let i = 0; i < 8; i++) {
+        const rr = gr * (0.28 + i * 0.095);
+        cCtx.beginPath();
+        cCtx.ellipse(cx, cy, rr * 1.5, rr * 0.44, a + i * 0.2, 0, TAU);
+        cCtx.stroke();
+      }
+
+      cCtx.fillStyle = "#46f8ff";
+      for (const p of globe) {
+        const x1 = p.x * Math.cos(a) - p.z * Math.sin(a);
+        const z1 = p.x * Math.sin(a) + p.z * Math.cos(a);
+        const y1 = p.y * Math.cos(b) - z1 * Math.sin(b);
+        const z2 = p.y * Math.sin(b) + z1 * Math.cos(b);
+        const depth = 1 / (1.5 - z2 * 0.36);
+        const x = cx + x1 * gr * depth;
+        const y = cy + y1 * gr * depth;
+        cCtx.globalAlpha = clamp(p.a * (0.5 + z2 * 0.26 + Math.sin(t * 0.002 + p.p) * 0.1), 0.02, 0.72);
+        cCtx.fillRect(x, y, p.size * depth * 1.4, p.size * depth * 1.4);
+      }
+      cCtx.globalAlpha = 1;
+    }
+
+    function drawVeil(t) {
+      cCtx.fillStyle = "#46f8ff";
+      for (const p of veil) {
+        const angle = p.angle + t * p.s;
+        const r = p.r + Math.sin(t * 0.001 + p.p) * 5;
+        const x = cx + Math.cos(angle) * r;
+        const y = cy + Math.sin(angle) * r * p.yScale;
+        cCtx.globalAlpha = clamp(p.a * (0.55 + Math.sin(t * 0.0014 + p.p) * 0.36), 0.015, 0.36);
+        cCtx.fillRect(x, y, p.size, p.size);
+      }
+      cCtx.globalAlpha = 1;
+    }
+
+    function drawWord(t) {
+      cCtx.fillStyle = "#46f8ff";
+      const breatheX = 1 + Math.sin(t * 0.00054) * 0.01;
+      const breatheY = 1 + Math.cos(t * 0.00061) * 0.006;
+      for (const p of word) {
+        const x = cx + (p.x - cx) * breatheX + Math.sin(t * 0.002 + p.p) * p.j;
+        const y = cy + (p.y - cy) * breatheY + Math.cos(t * 0.0016 + p.p) * p.j * 0.45;
+        cCtx.globalAlpha = clamp(p.a * (0.72 + Math.sin(t * 0.0026 + p.p) * 0.28), 0.12, 1);
+        cCtx.fillStyle = p.hot ? "#ffd07a" : "#46f8ff";
+        cCtx.fillRect(x, y, p.size, p.size);
+        if (p.hot && !reducedMotion) {
+          cCtx.globalAlpha = 0.28;
+          cCtx.fillRect(x - 6, y, 12, 1);
+        }
+      }
+      cCtx.globalAlpha = 1;
+    }
+
+    function drawRing(t) {
+      cCtx.fillStyle = "#46f8ff";
+      for (const p of ring) {
+        const angle = p.angle + t * p.s;
+        const rr = p.r + Math.sin(t * 0.0011 + p.p) * p.wobble;
+        const x = cx + Math.cos(angle) * rr * 1.016;
+        const y = cy + Math.sin(angle) * rr * 0.988;
+        cCtx.globalAlpha = clamp(p.a * (0.58 + Math.sin(t * 0.0014 + p.p) * 0.34), 0.02, 0.92);
+        cCtx.fillRect(x, y, p.size, p.size);
+      }
+
+      cCtx.globalAlpha = 1;
+      cCtx.lineWidth = 1;
+      cCtx.strokeStyle = "rgba(70, 248, 255, 0.24)";
+      cCtx.beginPath();
+      cCtx.arc(cx, cy, radius * 1.038, 0, TAU);
+      cCtx.stroke();
+      cCtx.strokeStyle = "rgba(0, 214, 198, 0.16)";
+      cCtx.beginPath();
+      cCtx.arc(cx, cy, radius * 0.9, 0, TAU);
+      cCtx.stroke();
+    }
+
+    function drawSparks(t) {
+      cCtx.lineWidth = 1;
+      for (const s of sparks) {
+        const a = s.angle + t * s.s;
+        const x = cx + Math.cos(a) * s.r;
+        const y = cy + Math.sin(a) * s.r * 0.96;
+        const tx = x + Math.cos(a + Math.PI / 2) * s.len;
+        const ty = y + Math.sin(a + Math.PI / 2) * s.len;
+        cCtx.globalAlpha = clamp(s.a * (0.42 + Math.sin(t * 0.003 + s.p) * 0.4), 0, 0.46);
+        cCtx.strokeStyle = "#46f8ff";
+        cCtx.beginPath();
+        cCtx.moveTo(x, y);
+        cCtx.lineTo(tx, ty);
+        cCtx.stroke();
+      }
+      cCtx.globalAlpha = 1;
+    }
+
+    function drawHud(t) {
+      hCtx.clearRect(0, 0, w, h);
+      hCtx.save();
+      hCtx.globalCompositeOperation = "lighter";
+      hCtx.strokeStyle = "rgba(70, 248, 255, 0.18)";
+      hCtx.lineWidth = 1;
+
+      const y = cy + radius * 0.72 + Math.sin(t * 0.0009) * 6;
+      hCtx.beginPath();
+      hCtx.ellipse(cx, y, radius * 1.08, radius * 0.16, 0, 0, TAU);
+      hCtx.stroke();
+
+      const leftX = cx - radius * 1.18;
+      const rightX = cx + radius * 1.18;
+      const topY = cy - radius * 0.72;
+      const bottomY = cy + radius * 0.72;
+      hCtx.strokeStyle = "rgba(70, 248, 255, 0.16)";
+      hCtx.beginPath();
+      hCtx.moveTo(leftX, cy);
+      hCtx.lineTo(leftX - 76, topY + 34);
+      hCtx.moveTo(rightX, cy);
+      hCtx.lineTo(rightX + 76, topY + 34);
+      hCtx.moveTo(leftX + 36, bottomY);
+      hCtx.lineTo(leftX - 54, bottomY + 42);
+      hCtx.moveTo(rightX - 36, bottomY);
+      hCtx.lineTo(rightX + 54, bottomY + 42);
+      hCtx.stroke();
+
+      hCtx.font = "11px Consolas, monospace";
+      hCtx.fillStyle = "rgba(170, 227, 236, 0.58)";
+      hCtx.fillText("CORE STABILITY 98.7", Math.max(34, leftX - 170), topY + 30);
+      hCtx.fillText("VOICE IDLE", Math.min(w - 160, rightX + 84), topY + 30);
+      hCtx.fillText("AI HOT LINK PENDING", Math.min(w - 190, rightX + 62), bottomY + 48);
+      hCtx.fillText("LOCAL FIELD ONLINE", Math.max(34, leftX - 150), bottomY + 48);
+
+      hCtx.restore();
+    }
+
+    function frame(time = 0) {
+      const t = reducedMotion ? 1500 : time;
+      atmosphereFrame(t);
+      drawCore(t);
+      drawHud(t);
+      requestAnimationFrame(frame);
+    }
+
+    window.addEventListener("resize", resize);
+    resize();
+    frame();
+  </script>
+</body>
+</html>

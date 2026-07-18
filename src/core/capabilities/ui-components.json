@@ -1,0 +1,36 @@
+{
+  "WeatherCard": {
+    "propsSchema": {
+      "city": { "type": "string", "required": false },
+      "temp": { "type": "number", "required": false },
+      "condition": { "type": "string", "required": false },
+      "desc": { "type": "string", "required": false },
+      "feel": { "type": "number", "required": false },
+      "high": { "type": "number", "required": false },
+      "low": { "type": "number", "required": false },
+      "wind": { "type": "string", "required": false },
+      "forecast": { "type": "array", "required": false }
+    }
+  },
+  "SelfCheckCard": {
+    "propsSchema": {
+      "results": { "type": "array", "required": true },
+      "overall": { "type": "string", "required": false }
+    }
+  },
+  "SelfCheckStepCard": {
+    "propsSchema": {
+      "step": { "type": "number", "required": true },
+      "total": { "type": "number", "required": false },
+      "name": { "type": "string", "required": true }
+    }
+  },
+  "AwakeningCard": {
+    "propsSchema": {
+      "index": { "type": "number", "required": true },
+      "total": { "type": "number", "required": false },
+      "title": { "type": "string", "required": true },
+      "finding": { "type": "string", "required": false }
+    }
+  }
+}

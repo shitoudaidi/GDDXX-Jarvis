@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>回合上下文取证 · Turn Trace</title>
+<style>
+  :root {
+    --bg: #0d0f12;
+    --panel: #14171c;
+    --panel2: #1a1e25;
+    --line: #262b33;
+    --txt: #d7dde5;
+    --dim: #8b95a3;
+    --faint: #5b6573;
+    /* 按 role 区分颜色，亮度尽量一致（遵循"颜色区分类型"的风格规范） */
+    --c-system: #7f8a99;
+    --c-user: #5fb3f6;
+    --c-assistant: #f2b15a;
+    --c-tool: #b98cf0;
+    --c-unknown: #6b7480;
+    --accent: #ff5c7a;
+    --good: #5fd08a;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--txt);
+    font: 13px/1.55 ui-monospace, SFMono-Regular, "Cascadia Code", Consolas, Menlo, monospace;
+    display: flex; flex-direction: column;
+  }
+  header {
+    padding: 10px 16px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    background: var(--panel);
+  }
+  header h1 { font-size: 14px; margin: 0; font-weight: 600; letter-spacing: .5px; }
+  header .sub { color: var(--dim); font-size: 12px; }
+  header .spacer { flex: 1; }
+  header label { color: var(--dim); font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
+  button, select, input {
+    background: var(--panel2); color: var(--txt); border: 1px solid var(--line);
+    border-radius: 6px; padding: 5px 10px; font: inherit; cursor: pointer;
+  }
+  button:hover { border-color: var(--faint); }
+  .legend { display: flex; gap: 12px; font-size: 11px; color: var(--dim); }
+  .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+
+  main { flex: 1; display: flex; min-height: 0; }
+  #list {
+    width: 340px; flex-shrink: 0; border-right: 1px solid var(--line);
+    overflow-y: auto; background: var(--panel);
+  }
+  .turn {
+    padding: 9px 12px; border-bottom: 1px solid var(--line); cursor: pointer;
+  }
+  .turn:hover { background: var(--panel2); }
+  .turn.active { background: #1f2530; border-left: 3px solid var(--accent); padding-left: 9px; }
+  .turn .row1 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .turn .chan { color: var(--good); font-size: 11px; }
+  .turn .time { color: var(--faint); font-size: 11px; }
+  .turn .preview { color: var(--dim); font-size: 12px; margin-top: 3px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .turn .ribbon { margin-top: 4px; font-size: 11px; letter-spacing: 1px; }
+  .turn .tags { margin-top: 4px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--dim); }
+  .tag.silent { color: var(--faint); }
+  .tag.nodeliver { color: var(--accent); border-color: var(--accent); }
+  .tag.abort { color: #e8a33d; }
+
+  #detail { flex: 1; overflow-y: auto; padding: 0 0 60px; }
+  .empty { color: var(--faint); padding: 40px; text-align: center; }
+  .meta-bar {
+    position: sticky; top: 0; z-index: 5; background: var(--panel);
+    border-bottom: 1px solid var(--line); padding: 10px 18px;
+  }
+  .meta-bar .k { color: var(--faint); }
+  .meta-bar .v { color: var(--txt); }
+  .meta-bar .line { margin: 2px 0; }
+  .um { color: var(--c-user); }
+
+  .round { border-bottom: 1px solid var(--line); }
+  .round-head {
+    padding: 8px 18px; cursor: pointer; display: flex; align-items: center; gap: 10px;
+    background: var(--panel2); position: sticky; top: 64px; z-index: 4;
+  }
+  .round-head:hover { background: #20262f; }
+  .round-head .rn { font-weight: 600; }
+  .round-head .calls { color: var(--c-tool); font-size: 12px; }
+  .round-head .chev { color: var(--faint); margin-left: auto; }
+  .round-body { padding: 6px 18px 16px; }
+  .section-title { color: var(--faint); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin: 14px 0 6px; }
+
+  .msg { border: 1px solid var(--line); border-radius: 7px; margin: 6px 0; overflow: hidden; background: var(--panel); }
+  .msg-head {
+    padding: 4px 10px; font-size: 11px; display: flex; gap: 10px; align-items: center;
+    border-bottom: 1px solid var(--line);
+  }
+  .msg-head .role { font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+  .msg-head .idx { color: var(--faint); }
+  .msg-head .extra { color: var(--dim); margin-left: auto; }
+  .msg-body { padding: 8px 10px; white-space: pre-wrap; word-break: break-word; }
+  .msg.role-system { border-left: 3px solid var(--c-system); }
+  .msg.role-system .role { color: var(--c-system); }
+  .msg.role-user { border-left: 3px solid var(--c-user); }
+  .msg.role-user .role { color: var(--c-user); }
+  .msg.role-assistant { border-left: 3px solid var(--c-assistant); }
+  .msg.role-assistant .role { color: var(--c-assistant); }
+  .msg.role-tool { border-left: 3px solid var(--c-tool); }
+  .msg.role-tool .role { color: var(--c-tool); }
+  .msg.role-unknown { border-left: 3px solid var(--c-unknown); }
+  .msg.collapsed .msg-body { display: none; }
+  .msg-head .toggle { color: var(--faint); cursor: pointer; }
+
+  .think { border: 1px dashed #3a4250; border-radius: 7px; padding: 8px 10px; margin: 6px 0; color: #9fb0c4; white-space: pre-wrap; word-break: break-word; background: #11151b; }
+  .out-content { border: 1px solid var(--c-assistant); border-radius: 7px; padding: 8px 10px; margin: 6px 0; white-space: pre-wrap; word-break: break-word; }
+  .toolcall { border: 1px solid var(--c-tool); border-radius: 7px; margin: 6px 0; padding: 6px 10px; }
+  .toolcall .name { color: var(--c-tool); font-weight: 700; }
+  .toolcall pre { margin: 4px 0 0; color: var(--dim); white-space: pre-wrap; word-break: break-word; }
+  .trunc { color: var(--faint); font-size: 11px; margin-top: 6px; }
+
+  /* role-confusion 取证高亮 */
+  mark.agent { background: rgba(242,177,90,.22); color: #ffd596; border-radius: 3px; padding: 0 2px; }
+  mark.marker { background: rgba(95,179,246,.18); color: #bfe0ff; border-radius: 3px; padding: 0 2px; }
+  .hint { color: var(--accent); font-size: 11px; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>回合上下文取证</h1>
+  <span class="sub">逐回合回放模型看到的 messages[] 与思考 — 排查角色归属混乱</span>
+  <div class="spacer"></div>
+  <div class="legend">
+    <span><i style="background:var(--c-system)"></i>system</span>
+    <span><i style="background:var(--c-user)"></i>user</span>
+    <span><i style="background:var(--c-assistant)"></i>assistant</span>
+    <span><i style="background:var(--c-tool)"></i>tool</span>
+  </div>
+  <label><input type="checkbox" id="auto" checked /> 自动刷新</label>
+  <button id="refresh">刷新</button>
+  <button id="clear">清空记录</button>
+</header>
+<main>
+  <div id="list"><div class="empty">加载中…</div></div>
+  <div id="detail"><div class="empty">从左侧选择一个回合查看上下文与思考过程</div></div>
+</main>
+
+<script>
+const $ = sel => document.querySelector(sel)
+const listEl = $('#list')
+const detailEl = $('#detail')
+let activeId = null
+let agentName = ''
+let summaries = []
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+// 高亮：① agent 名字（出现在 user/tool 消息里 = 角色混淆嫌疑）② [..] 形式的运行时 marker
+function highlight(text, role) {
+  let h = esc(text)
+  // marker：[xxx] 形如 [↑ your last reply] / [assistant ...] / [intent check] 等
+  h = h.replace(/\[[^\]\n]{1,60}\]/g, m => `<mark class="marker">${m}</mark>`)
+  if (agentName) {
+    const re = new RegExp('(' + agentName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'g')
+    h = h.replace(re, '<mark class="agent">$1</mark>')
+  }
+  return h
+}
+
+function fmtTime(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleString('zh-CN', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+function roleRibbonHtml(ribbon) {
+  const colorOf = c => ({ S: 'var(--c-system)', U: 'var(--c-user)', A: 'var(--c-assistant)', T: 'var(--c-tool)' }[c] || 'var(--c-unknown)')
+  return [...(ribbon || '')].map(c => `<span style="color:${colorOf(c)}">${c}</span>`).join('')
+}
+
+async function loadList() {
+  try {
+    const r = await fetch('/admin/traces?limit=80')
+    const data = await r.json()
+    summaries = data.traces || []
+    renderList()
+  } catch (e) {
+    listEl.innerHTML = `<div class="empty">加载失败：${esc(e.message)}</div>`
+  }
+}
+
+function renderList() {
+  if (!summaries.length) { listEl.innerHTML = '<div class="empty">暂无记录（与 agent 对话后会出现）</div>'; return }
+  listEl.innerHTML = summaries.map(t => {
+    const tags = []
+    if (t.silentSignal || t.meta?.silentSignal) tags.push('<span class="tag silent">silent</span>')
+    if (t.meta?.localReply) tags.push('<span class="tag">local</span>')
+    if (!t.delivered && !t.meta?.silentSignal) tags.push('<span class="tag nodeliver">未投递</span>')
+    if (t.aborted) tags.push('<span class="tag abort">中断</span>')
+    return `<div class="turn ${t.id === activeId ? 'active' : ''}" data-id="${t.id}">
+      <div class="row1">
+        <span class="chan">${esc(t.meta?.channel || t.meta?.label || 'turn')}</span>
+        <span class="time">${fmtTime(t.startedAt)}</span>
+      </div>
+      <div class="preview">${esc(t.preview || t.meta?.userMessage || '(无预览)')}</div>
+      <div class="ribbon">${roleRibbonHtml(t.roleRibbon)} <span style="color:var(--faint)">· ${t.roundCount}轮 ${t.messageCount}条</span></div>
+      <div class="tags">${tags.join('')}</div>
+    </div>`
+  }).join('')
+  listEl.querySelectorAll('.turn').forEach(el => {
+    el.addEventListener('click', () => loadDetail(el.dataset.id))
+  })
+}
+
+async function loadDetail(id) {
+  activeId = id
+  renderList()
+  detailEl.innerHTML = '<div class="empty">加载中…</div>'
+  try {
+    const r = await fetch('/admin/traces/' + encodeURIComponent(id))
+    const data = await r.json()
+    if (!data.ok) throw new Error(data.error || 'not found')
+    renderDetail(data.trace)
+  } catch (e) {
+    detailEl.innerHTML = `<div class="empty">加载失败：${esc(e.message)}</div>`
+  }
+}
+
+function msgHtml(m, idx) {
+  const role = (m.role || 'unknown').toLowerCase()
+  const extras = []
+  if (m.name) extras.push('name=' + esc(m.name))
+  if (m.tool_call_id) extras.push('tc=' + esc(m.tool_call_id))
+  let body = ''
+  if (m.content) body += highlight(m.content, role)
+  if (m.tool_calls && m.tool_calls.length) {
+    body += (body ? '\n' : '') + m.tool_calls.map(tc =>
+      `<span style="color:var(--c-tool)">⚙ ${esc(tc.name)}</span>(${esc(JSON.stringify(tc.args))})`
+    ).join('\n')
+  }
+  if (m.reasoning_content) body += `\n<span style="color:var(--faint)">[reasoning] </span>` + highlight(m.reasoning_content, role)
+  if (!body) body = '<span style="color:var(--faint)">(空)</span>'
+  const trunc = m.truncated ? `<div class="trunc">… 已截断 ${m.truncated} 字</div>` : ''
+  // user / tool 消息里出现 agent 名字 = 角色归属混乱的重点嫌疑
+  const showHint = (role === 'user' || role === 'tool') && agentName && m.content && m.content.includes(agentName)
+  const hint = showHint ? `<div class="hint">⚠ 此 ${role} 消息里出现了 agent 自己的名字「${esc(agentName)}」——可能是把"自己说的话"错当成了对方说的</div>` : ''
+  return `<div class="msg role-${role}">
+    <div class="msg-head">
+      <span class="role">${esc(role)}</span>
+      <span class="idx">#${idx}</span>
+      <span class="extra">${extras.join(' · ')}</span>
+    </div>
+    <div class="msg-body">${body}${trunc}${hint}</div>
+  </div>`
+}
+
+function renderDetail(t) {
+  const m = t.meta || {}
+  const finalMsgs = t.messages || []
+  let html = `<div class="meta-bar">
+    <div class="line"><span class="k">turn </span><span class="v">${esc(t.id)}</span> <span class="k">· ${fmtTime(t.startedAt)} → ${fmtTime(t.finishedAt) || '进行中'}</span></div>
+    <div class="line"><span class="k">channel </span><span class="v">${esc(m.channel || m.label || '-')}</span>
+      <span class="k"> · from </span><span class="v">${esc(m.fromId || '-')}</span>
+      <span class="k"> · delivered </span><span class="v" style="color:${t.delivered ? 'var(--good)' : 'var(--accent)'}">${t.delivered}</span>
+      ${t.aborted ? '<span class="k"> · </span><span class="tag abort">中断</span>' : ''}
+      ${m.silentSignal ? '<span class="k"> · </span><span class="tag silent">silent</span>' : ''}</div>
+    ${m.userMessage ? `<div class="line"><span class="k">用户消息：</span><span class="um">${esc(m.userMessage)}</span></div>` : ''}
+  </div>`
+
+  if (!t.rounds || !t.rounds.length) {
+    html += '<div class="empty">该回合没有记录到模型调用</div>'
+    detailEl.innerHTML = html
+    return
+  }
+
+  t.rounds.forEach((rd, ri) => {
+    const ctx = finalMsgs.slice(0, rd.inputOffset == null ? finalMsgs.length : rd.inputOffset)
+    const open = ri === 0  // 默认展开第 0 轮（初始上下文，角色混淆最常现形的地方）
+    const callsLabel = rd.toolCalls && rd.toolCalls.length
+      ? '⚙ ' + rd.toolCalls.map(c => c.name).join(', ')
+      : '<span style="color:var(--faint)">无工具调用</span>'
+
+    let inner = `<div class="section-title">本轮模型看到的上下文 · ${ctx.length} 条消息</div>`
+    inner += ctx.map((mm, i) => msgHtml(mm, i)).join('')
+
+    inner += `<div class="section-title">本轮模型输出</div>`
+    if (rd.reasoningContent) inner += `<div class="think">🧠 ${highlight(rd.reasoningContent)}</div>`
+    if (rd.content) {
+      // content 里可能内嵌 <think>...</think>，单独提取展示
+      const tm = rd.content.match(/<think>([\s\S]*?)<\/think>/i)
+      if (tm) {
+        inner += `<div class="think">🧠 ${highlight(tm[1].trim())}</div>`
+        const rest = rd.content.replace(/<think>[\s\S]*?<\/think>/i, '').trim()
+        if (rest) inner += `<div class="out-content">${highlight(rest)}</div>`
+      } else {
+        inner += `<div class="out-content">${highlight(rd.content)}</div>`
+      }
+    }
+    if (rd.toolCalls && rd.toolCalls.length) {
+      inner += rd.toolCalls.map(c =>
+        `<div class="toolcall"><span class="name">⚙ ${esc(c.name)}</span><pre>${esc(JSON.stringify(c.args, null, 2))}</pre></div>`
+      ).join('')
+    }
+    if (!rd.content && !rd.reasoningContent && (!rd.toolCalls || !rd.toolCalls.length)) {
+      inner += '<div class="empty">（本轮无输出）</div>'
+    }
+
+    html += `<div class="round" data-ri="${ri}">
+      <div class="round-head">
+        <span class="rn">第 ${rd.round} 轮</span>
+        <span class="calls">${callsLabel}</span>
+        ${rd.aborted ? '<span class="tag abort">中断</span>' : ''}
+        <span class="chev">${open ? '▼' : '▶'}</span>
+      </div>
+      <div class="round-body" style="${open ? '' : 'display:none'}">${inner}</div>
+    </div>`
+  })
+
+  detailEl.innerHTML = html
+  detailEl.querySelectorAll('.round-head').forEach(head => {
+    head.addEventListener('click', () => {
+      const body = head.nextElementSibling
+      const chev = head.querySelector('.chev')
+      const hidden = body.style.display === 'none'
+      body.style.display = hidden ? '' : 'none'
+      chev.textContent = hidden ? '▼' : '▶'
+    })
+  })
+}
+
+$('#refresh').addEventListener('click', loadList)
+$('#clear').addEventListener('click', async () => {
+  if (!confirm('清空所有回合追踪记录（含落盘文件）？')) return
+  await fetch('/admin/traces-clear', { method: 'POST' })
+  activeId = null
+  detailEl.innerHTML = '<div class="empty">已清空</div>'
+  loadList()
+})
+
+let timer = null
+function setupAuto() {
+  if (timer) { clearInterval(timer); timer = null }
+  if ($('#auto').checked) timer = setInterval(loadList, 5000)
+}
+$('#auto').addEventListener('change', setupAuto)
+
+async function init() {
+  try {
+    const r = await fetch('/agent-profile')
+    agentName = (await r.json()).name || ''
+  } catch {}
+  await loadList()
+  setupAuto()
+}
+init()
+</script>
+</body>
+</html>

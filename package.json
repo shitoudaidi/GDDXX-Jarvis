@@ -8,12 +8,15 @@
   "scripts": {
     "start": "npm run build:ui && node scripts/start-electron.cjs",
     "start:desktop": "npm run build:ui && node scripts/start-electron.cjs",
-    "start:web": "npm run build:ui && node src/core/index.js",
+    "start:web": "npm run build:ui && node scripts/start-web.cjs",
+    "visuals:generate": "node scripts/generate-state-visuals.cjs",
     "build:ui": "vite build --config vite.jarvis.config.mjs",
     "doctor:install": "node scripts/check-install.cjs",
+    "doctor:web": "node scripts/check-web-install.cjs",
     "repair:electron": "node scripts/repair-electron.cjs",
     "check": "npm run build:ui && node --check electron/main.cjs && node --check electron/preload.cjs && node --check src/core/index.js && node --check src/core/api.js && node --check src/core/grok-build.js && node --check src/core/capabilities/tools/ui.js && node --check src/core/docs.js && node src/core/test-tool-router.js && node scripts/probe-current-tool-surface.cjs && node scripts/probe-news-ticker.cjs && node scripts/probe-engineering-routing.cjs && node scripts/probe-tts-echo-guards.cjs && node scripts/probe-wake-sensitivity.cjs",
     "shortcut:desktop": "node scripts/install-desktop-shortcut.cjs",
+    "shortcut:web": "node scripts/install-desktop-shortcut.cjs web",
     "grok:install": "node scripts/install-grok-build.cjs",
     "probe:core": "node scripts/probe-core-runtime.cjs",
     "probe:desktop": "node scripts/probe-desktop-e2e.cjs",
@@ -53,6 +56,7 @@
     "probe:tts-echo-guards": "node scripts/probe-tts-echo-guards.cjs",
     "probe:tts-repeat": "node scripts/probe-tts-repeat.cjs",
     "rebuild:native": "node ./node_modules/electron-builder/cli.js install-app-deps",
+    "rebuild:web": "npm rebuild better-sqlite3",
     "postinstall": "node ./node_modules/electron-builder/cli.js install-app-deps",
     "pack": "npm run check && node scripts/build.cjs --dir",
     "dist": "npm run check && node scripts/build.cjs --win nsis"
@@ -66,6 +70,7 @@
     "qrcode-terminal": "^0.12.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "three": "^0.160.0",
     "wechat-ilink-client": "^0.1.0",
     "ws": "^8.20.1"
   },

@@ -17,6 +17,8 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..')
 
 const USER_DIR = process.env.JARVIS_USER_DIR
   ? path.resolve(process.env.JARVIS_USER_DIR)
+  : process.env.JARVIS_HOME
+    ? path.resolve(process.env.JARVIS_HOME, 'runtime', 'jarvis')
   : REPO_ROOT
 
 const RESOURCES_DIR = process.env.JARVIS_RESOURCES_DIR

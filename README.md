@@ -27,6 +27,20 @@ npm.cmd run start:desktop
 
 Never commit `config.json`. It is intentionally ignored by Git.
 
+If Electron is blocked by your machine, security software, or a remote sandbox, use web mode instead. It runs the same Jarvis core and UI in your browser without launching `electron.exe`:
+
+```powershell
+npm.cmd run rebuild:web
+npm.cmd run doctor:web
+npm.cmd run start:web
+```
+
+To create a desktop shortcut for this fallback:
+
+```powershell
+npm.cmd run shortcut:web
+```
+
 If source installation fails on Windows, run:
 
 ```powershell
@@ -134,6 +148,19 @@ npm.cmd run start:desktop
 ```
 
 This launches the local Electron binary from this project and starts the local Jarvis core on `127.0.0.1:3721` by default.
+
+## Web Mode Fallback
+
+Use this when Electron cannot run in the target environment:
+
+```powershell
+npm.cmd install
+npm.cmd run start:web
+```
+
+Web mode automatically creates local runtime directories under `.jarvis-data`, starts Jarvis on `http://127.0.0.1:3721/`, and opens the browser. It also clears `ELECTRON_RUN_AS_NODE`, so it is safe in shells that were previously used for Electron probes.
+
+Source desktop mode rebuilds `better-sqlite3` for Electron. Pure web mode uses normal Node.js instead. If you switch from desktop source mode to web source mode, run `npm.cmd run rebuild:web`; if you switch back to desktop source mode, run `npm.cmd run rebuild:native`.
 
 ## Current Capabilities
 

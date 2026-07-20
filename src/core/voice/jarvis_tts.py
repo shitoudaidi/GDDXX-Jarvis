@@ -23,10 +23,10 @@ def resolve_espeak_data_dir() -> Path:
     candidates = [
         os.environ.get("JARVIS_ESPEAK_DATA"),
         Path(os.environ.get("LOCALAPPDATA", tempfile.gettempdir())) / "Jarvis" / "voice" / "espeak-ng-data",
-        ROOT / ".venv" / "Lib" / "site-packages" / "piper" / "espeak-ng-data",
-        ROOT / ".venv" / "lib" / "site-packages" / "piper" / "espeak-ng-data",
-        Path(__file__).resolve().parents[3] / ".venv" / "Lib" / "site-packages" / "piper" / "espeak-ng-data",
-        Path(__file__).resolve().parents[3] / ".venv" / "lib" / "site-packages" / "piper" / "espeak-ng-data",
+        ROOT / ".python" / "Lib" / "site-packages" / "piper" / "espeak-ng-data",
+        ROOT / ".python" / "lib" / "site-packages" / "piper" / "espeak-ng-data",
+        Path(__file__).resolve().parents[3] / ".python" / "Lib" / "site-packages" / "piper" / "espeak-ng-data",
+        Path(__file__).resolve().parents[3] / ".python" / "lib" / "site-packages" / "piper" / "espeak-ng-data",
     ]
     for candidate in candidates:
         if not candidate:

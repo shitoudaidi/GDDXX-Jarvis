@@ -5,7 +5,7 @@ const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 
 const root = path.resolve(__dirname, '..')
-const python = path.join(root, '.venv', 'Scripts', 'python.exe')
+const python = path.join(root, '.python', 'python.exe')
 const script = path.join(root, 'src', 'core', 'voice', 'jarvis_tts.py')
 const output = path.join(os.tmpdir(), `jarvis-voice-probe-${process.pid}.wav`)
 

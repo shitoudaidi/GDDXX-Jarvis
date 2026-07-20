@@ -1,7 +1,7 @@
 {
   "name": "gddxx-jarvis",
   "productName": "GDDXX-Jarvis",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "GDDXX-Jarvis: a local desktop Agent that helps you talk, monitor information, and get real work done.",
   "author": "GDDXX-Jarvis Project",
   "main": "electron/main.cjs",
@@ -91,13 +91,13 @@
     "electronDist": "node_modules/electron/dist",
     "asarUnpack": [
       "**/node_modules/better-sqlite3/**",
-      ".venv/**",
+      ".python/**",
       "models/**",
       "src/core/voice/**"
     ],
     "files": [
       "electron/**/*",
-      ".venv/**/*",
+      ".python/**/*",
       "models/**/*",
       "src/**/*",
       "skills/**/*",

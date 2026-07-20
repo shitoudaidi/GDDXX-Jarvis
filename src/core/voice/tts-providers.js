@@ -220,8 +220,8 @@ function resolveJarvisPython() {
   const candidates = [
     process.env.JARVIS_TTS_PYTHON,
     ...uniqueExistingRoots().flatMap(root => [
-      path.join(root, '.venv', 'Scripts', 'python.exe'),
-      path.join(root, '.venv', 'bin', 'python'),
+      path.join(root, '.python', 'python.exe'),
+      path.join(root, '.python', 'bin', 'python'),
     ]),
   ].filter(Boolean)
   return candidates.find(candidate => fs.existsSync(candidate)) || null

@@ -1,25 +1,12 @@
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $PSScriptRoot
-$venv = Join-Path $root '.venv'
-$python = Join-Path $venv 'Scripts\python.exe'
+. (Join-Path $PSScriptRoot 'portable-python.ps1')
+$python = Install-JarvisPortablePython -Root $root
 $modelDir = Join-Path $root 'models\whisper'
 $modelFile = Join-Path $modelDir 'tiny.pt'
 
-if (-not (Test-Path -LiteralPath $python)) {
-  if (Get-Command uv -ErrorAction SilentlyContinue) {
-    uv venv --python 3.11 $venv
-  } else {
-    py -3.11 -m venv $venv
-  }
-}
-if (-not (Test-Path -LiteralPath $python)) { throw 'Could not create the project Python 3.11 environment.' }
-
-if (Get-Command uv -ErrorAction SilentlyContinue) {
-  uv pip install --python $python 'openai-whisper>=20240930' 'websockets>=12,<16'
-} else {
-  & $python -m pip install --disable-pip-version-check 'openai-whisper>=20240930' 'websockets>=12,<16'
-}
+& $python -m pip install --disable-pip-version-check 'openai-whisper>=20240930' 'websockets>=12,<16'
 if ($LASTEXITCODE -ne 0) { throw 'Failed to install local ASR dependencies.' }
 
 New-Item -ItemType Directory -Force -Path $modelDir | Out-Null

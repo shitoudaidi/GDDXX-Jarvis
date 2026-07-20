@@ -251,4 +251,4 @@ npm run voice:install:jarvis
 npm run probe:jarvis-tts
 ```
 
-The model is stored under `models/jarvis` and the Python packages under `.venv`; both are excluded from Git. Jarvis voice failures are surfaced to the UI instead of silently switching to a different system voice.
+The model is stored under `models/jarvis` and the portable Python runtime under `.python`; both are excluded from Git. Jarvis voice failures are surfaced to the UI instead of silently switching to a different system voice.

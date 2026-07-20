@@ -46,7 +46,7 @@ function findPython() {
     path.resolve(__dirname, '..', '..', '..'),
     process.cwd(),
   ].filter(Boolean)
-  const relative = process.platform === 'win32' ? path.join('.venv', 'Scripts', 'python.exe') : path.join('.venv', 'bin', 'python')
+  const relative = process.platform === 'win32' ? path.join('.python', 'python.exe') : path.join('.python', 'bin', 'python')
   const bundled = roots.map(root => path.join(root, relative)).find(candidate => fs.existsSync(candidate))
   return bundled || (process.platform === 'win32' ? 'python' : 'python3')
 }

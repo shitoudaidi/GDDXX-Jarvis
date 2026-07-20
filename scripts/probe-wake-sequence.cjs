@@ -6,7 +6,7 @@ const path = require('node:path')
 const root = path.resolve(__dirname, '..')
 const packaged = /^(1|true|yes|on)$/i.test(String(process.env.JARVIS_PROBE_PACKAGED || ''))
 const electronPath = packaged
-  ? path.join(root, 'dist', 'win-unpacked', 'Jarvis.exe')
+  ? path.join(root, 'dist', 'win-unpacked', 'GDDXX-Jarvis.exe')
   : path.join(root, 'node_modules', 'electron', 'dist', 'electron.exe')
 if (!fs.existsSync(electronPath)) {
   console.error(JSON.stringify({ ok: false, error: `Electron executable missing: ${electronPath}` }, null, 2))

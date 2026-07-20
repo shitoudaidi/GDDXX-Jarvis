@@ -20,16 +20,26 @@ Current public release target: Windows 10/11 64-bit.
 1. Open this repository's GitHub Releases page.
 2. Download the latest `GDDXX-Jarvis-Windows-x64-Setup-*.exe`.
 3. Run the installer.
-4. Launch `Jarvis` from the desktop or Start menu.
-5. On first launch, open Settings and configure DeepSeek plus ASR credentials.
+4. Launch `GDDXX-Jarvis` from the desktop or Start menu.
+5. On first launch, use the arrow on the standby screen to enter, then open Settings and configure DeepSeek. Configure cloud ASR only when voice input is needed.
 
-That is the intended install path. No Node.js, npm, Visual Studio Build Tools, Git, or source compilation should be required for normal use.
+That is the intended install path. No Node.js, npm, Python, Visual Studio Build Tools, Git, or source compilation is required for normal use.
+
+### Clean Windows installation
+
+Supported target: a clean Windows 10 or Windows 11 64-bit installation.
+
+1. Download the single `GDDXX-Jarvis-Windows-x64-Setup-*.exe` file from Releases.
+2. Run it, choose an install directory, and finish installation.
+3. Start `GDDXX-Jarvis`; no restart is required.
+
+The installer contains the desktop runtime and local application core. A microphone is optional: the standby arrow always opens the text workbench. DeepSeek conversation and cloud speech recognition require the user's own provider credentials because public builds never contain private API keys. Windows SmartScreen may warn about unsigned community builds; verify that the installer came from this repository's Releases page before continuing.
 
 For wake voice, say `嗨，贾维斯` or `Hello Jarvis` after the microphone status shows ready.
 
 ### For developers: run from source
 
-Requirements: Windows 10/11, Node.js 20+, Git, and a working microphone.
+Requirements: Windows 10/11, Node.js 20 or 22 LTS, Git, and a working microphone. Node.js 24 may require a local native build toolchain for `better-sqlite3`.
 
 ```powershell
 git clone https://github.com/shitoudaidi/jddxx.git
@@ -64,6 +74,8 @@ npm.cmd run doctor:install
 npm.cmd run repair:electron
 npm.cmd run rebuild:native
 ```
+
+For web mode, use the Node.js version that installed the dependencies. If `doctor:web` reports a `NODE_MODULE_VERSION` mismatch, run `npm.cmd install` after switching to Node.js 20/22 LTS, then run `npm.cmd run rebuild:web`. On Node.js 24, a source rebuild also requires Visual Studio Build Tools 2022 with the **Desktop development with C++** workload.
 
 `doctor:install` checks the real Electron binary version and verifies `better-sqlite3` inside Electron's own runtime. `repair:electron` re-downloads Electron and refuses binaries that fail validation. If `better-sqlite3` still fails to build, install Visual Studio Build Tools 2022 with the C++ desktop workload, then run `npm.cmd run rebuild:native` again.
 

@@ -1,9 +1,9 @@
 {
-  "name": "jarvis-local-agent",
-  "productName": "Jarvis",
-  "version": "0.1.1",
+  "name": "gddxx-jarvis",
+  "productName": "GDDXX-Jarvis",
+  "version": "0.2.0",
   "description": "GDDXX-Jarvis: a local desktop Agent that helps you talk, monitor information, and get real work done.",
-  "author": "Jarvis Project",
+  "author": "GDDXX-Jarvis Project",
   "main": "electron/main.cjs",
   "scripts": {
     "start": "npm run build:ui && node scripts/start-electron.cjs",
@@ -81,8 +81,9 @@
     "vite": "^8.1.5"
   },
   "build": {
-    "appId": "local.jarvis.agent",
-    "productName": "Jarvis",
+    "appId": "com.gddxx.jarvis",
+    "productName": "GDDXX-Jarvis",
+    "executableName": "GDDXX-Jarvis",
     "artifactName": "GDDXX-Jarvis-Windows-x64-Setup-${version}.${ext}",
     "asar": true,
     "electronDist": "node_modules/electron/dist",
@@ -138,9 +139,9 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Jarvis",
+      "shortcutName": "GDDXX-Jarvis",
       "deleteAppDataOnUninstall": false,
-      "runAfterFinish": false
+      "runAfterFinish": true
     }
   }
 }

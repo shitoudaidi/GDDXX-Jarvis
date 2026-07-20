@@ -38,8 +38,8 @@ function requestJson(route, timeoutMs = 3000) {
 }
 
 function readShortcutSummary() {
-  const linkPath = path.join(os.homedir(), "Desktop", "Jarvis.lnk");
-  const expectedTarget = path.join(root, "dist", "win-unpacked", "Jarvis.exe");
+  const linkPath = path.join(os.homedir(), "Desktop", "GDDXX-Jarvis.lnk");
+  const expectedTarget = path.join(root, "dist", "win-unpacked", "GDDXX-Jarvis.exe");
   if (!fs.existsSync(linkPath)) return { ok: false, error: "desktop shortcut missing", linkPath };
   if (!fs.existsSync(expectedTarget)) return { ok: false, error: "packaged exe missing", expectedTarget };
 

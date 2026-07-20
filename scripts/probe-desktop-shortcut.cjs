@@ -4,8 +4,8 @@ const os = require("node:os");
 const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
-const expectedTarget = path.join(root, "dist", "win-unpacked", "Jarvis.exe");
-const linkPath = path.join(os.homedir(), "Desktop", "Jarvis.lnk");
+const expectedTarget = path.join(root, "dist", "win-unpacked", "GDDXX-Jarvis.exe");
+const linkPath = path.join(os.homedir(), "Desktop", "GDDXX-Jarvis.lnk");
 
 function readShortcut() {
   const command = `

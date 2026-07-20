@@ -24,7 +24,7 @@ if (IS_DESKTOP_PROBE) {
   process.env.JARVIS_SKIP_STARTUP_SELF_CHECK = process.env.JARVIS_SKIP_STARTUP_SELF_CHECK || "1";
 }
 
-app.setName("Jarvis");
+app.setName("GDDXX-Jarvis");
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 const FORCE_SOFTWARE_RENDERING = /^(1|true|yes|on)$/i.test(String(
   process.env.JARVIS_FORCE_SOFTWARE_RENDERING || process.env.JARVIS_DISABLE_GPU || ""
@@ -39,7 +39,8 @@ if (FORCE_SOFTWARE_RENDERING) {
 const runtimeRoot = process.env.JARVIS_USER_DIR
   ? path.resolve(process.env.JARVIS_USER_DIR)
   : path.join(JARVIS_HOME, "runtime", "jarvis");
-app.setAppUserModelId(app.isPackaged ? "local.jarvis.agent" : "local.jarvis.agent.dev");
+// Keep one stable Windows identity so taskbar grouping and the shortcut use Jarvis's icon.
+app.setAppUserModelId("com.gddxx.jarvis");
 const userDataDir = path.join(runtimeRoot, "electron-user-data");
 fs.mkdirSync(userDataDir, { recursive: true });
 app.setPath("userData", userDataDir);
@@ -349,7 +350,7 @@ async function createWindow() {
     minHeight: 720,
     backgroundColor: "#02070b",
     icon: path.join(__dirname, "..", "build", "icon.ico"),
-    title: "Jarvis",
+    title: "GDDXX-Jarvis",
     show: false,
     webPreferences: {
       contextIsolation: true,
@@ -361,6 +362,7 @@ async function createWindow() {
       preload: path.join(__dirname, "preload.cjs")
     }
   });
+  try { mainWindow.setIcon(path.join(ROOT, "build", "icon.ico")); } catch {}
 
   installMediaPermissions(mainWindow);
 
@@ -1314,7 +1316,7 @@ app.whenReady().then(async () => {
     backendPort = await findFreePort(Number(process.env.JARVIS_PORT || 3721));
   } catch (error) {
     log("backend-port-failed", error.stack || error.message || String(error));
-    dialog.showErrorBox("Jarvis startup failed", error.message || String(error));
+    dialog.showErrorBox("GDDXX-Jarvis startup failed", error.message || String(error));
     app.quit();
     return;
   }
@@ -1329,7 +1331,7 @@ app.whenReady().then(async () => {
     log("backend-health-ok", String(backendPort));
   } catch (error) {
     log("backend-failed", error.stack || error.message || String(error));
-    dialog.showErrorBox("Jarvis startup failed", error.message || String(error));
+    dialog.showErrorBox("GDDXX-Jarvis startup failed", error.message || String(error));
     app.quit();
     return;
   }

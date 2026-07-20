@@ -2,7 +2,7 @@ const childProcess = require('node:child_process')
 const path = require('node:path')
 
 const root = path.resolve(__dirname, '..')
-const executable = path.join(root, 'dist', 'win-unpacked', 'Jarvis.exe')
+const executable = path.join(root, 'dist', 'win-unpacked', 'GDDXX-Jarvis.exe')
 const child = childProcess.spawn(executable, [], {
   cwd: path.dirname(executable),
   env: {

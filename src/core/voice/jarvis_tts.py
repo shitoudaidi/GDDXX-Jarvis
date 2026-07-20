@@ -19,12 +19,25 @@ ROOT = Path(os.environ.get("JARVIS_MODEL_ROOT", Path(__file__).resolve().parents
 MODEL_DIR = ROOT / "models" / "jarvis" / "en" / "en_GB" / "jarvis" / "high"
 MODEL_PATH = MODEL_DIR / "jarvis-high.onnx"
 CONFIG_PATH = MODEL_DIR / "jarvis-high.onnx.json"
-ESPEAK_DATA_DIR = Path(
-    os.environ.get(
-        "JARVIS_ESPEAK_DATA",
-        str(Path(os.environ.get("LOCALAPPDATA", tempfile.gettempdir())) / "Jarvis" / "voice" / "espeak-ng-data"),
-    )
-)
+def resolve_espeak_data_dir() -> Path:
+    candidates = [
+        os.environ.get("JARVIS_ESPEAK_DATA"),
+        Path(os.environ.get("LOCALAPPDATA", tempfile.gettempdir())) / "Jarvis" / "voice" / "espeak-ng-data",
+        ROOT / ".venv" / "Lib" / "site-packages" / "piper" / "espeak-ng-data",
+        ROOT / ".venv" / "lib" / "site-packages" / "piper" / "espeak-ng-data",
+        Path(__file__).resolve().parents[3] / ".venv" / "Lib" / "site-packages" / "piper" / "espeak-ng-data",
+        Path(__file__).resolve().parents[3] / ".venv" / "lib" / "site-packages" / "piper" / "espeak-ng-data",
+    ]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        path = Path(candidate)
+        if (path / "phontab").is_file():
+            return path
+    return Path(os.environ.get("LOCALAPPDATA", tempfile.gettempdir())) / "Jarvis" / "voice" / "espeak-ng-data"
+
+
+ESPEAK_DATA_DIR = resolve_espeak_data_dir()
 LENGTH_SCALE = 1.05
 PLAYBACK_GAIN = 1.5
 TARGET_PEAK = 0.97

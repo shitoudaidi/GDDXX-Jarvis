@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { AnimatePresence, motion } from "motion/react";
 import {
   Activity,
+  ArrowRight,
   CheckCircle2,
   CircleAlert,
   CloudSun,
@@ -220,14 +221,17 @@ function isWakePhrase(value, { loose = false } = {}) {
   const hasAny = (items) => items.some((item) => compact.includes(normalizeEchoText(item)));
   const jarvisTokens = [
     "jarvis", "javis", "jarviss", "jervis", "travis",
+    "贾维斯", "加维斯", "扎维斯", "嘉维斯", "假维斯",
     "贾维斯", "贾维思", "贾威斯", "贾伟思", "加维斯", "嘉维斯", "佳维斯", "家维斯", "扎维斯",
     "杰维斯", "杰维思", "贾维丝", "贾维司", "佳伟斯", "家伟斯", "扎维丝", "扎维思", "扎维司", "扎维", "炸维斯", "查维斯",
     "贾维", "加维", "嘉维", "小贾", "海贾"
   ];
-  const wakePrefixes = ["hi", "hey", "hello", "嗨", "嘿", "哈", "你好"];
+  const wakePrefixes = ["hi", "hey", "hello", "嗨", "嘿", "哈", "你好", "您好"];
   const commonMishears = ["john", "jon", "讲", "江", "将"];
   if (hasAny(jarvisTokens)) return true;
   if (hasAny(wakePrefixes) && hasAny(commonMishears)) return true;
+  if (loose && /(?:嗨|嘿|哈|你?好|喂|哎).{0,3}(?:维斯|威斯|维思|薇斯)/u.test(compact)) return true;
+  if (loose && /(?:贾|加|扎|嘉|假|家).{0,1}(?:维斯|威斯|维思|薇斯)/u.test(compact)) return true;
   return loose && /(?:jarv|jerv|trav|贾维|扎维|杰维|加维|嘉维)/i.test(compact);
 }
 
@@ -306,6 +310,17 @@ function stateLabel(state) {
   if (state === "speaking") return "回应";
   if (state === "alert") return "待处理";
   return "待命";
+}
+
+function clamp01(value) {
+  return Math.min(1, Math.max(0, Number(value) || 0));
+}
+
+function amplifyAudioLevel(value) {
+  const raw = clamp01(value);
+  if (raw < 0.004) return 0;
+  const lifted = (raw - 0.004) / 0.996;
+  return clamp01(Math.pow(lifted, 0.66) * 1.1);
 }
 
 function useClock() {
@@ -487,6 +502,27 @@ function IntelligenceRail({ signals, api, grokStatus, onEngineering }) {
 
 function JarvisWorkbench({ visualState, interfaceMode, readiness, status, activation, connection, grokReady, audioLevel = 0 }) {
   const caps = readiness?.capabilities || {};
+  const energy = amplifyAudioLevel(audioLevel);
+  const signalActive = visualState === "speaking" || visualState === "listening" || energy > 0.025;
+  const signalBars = Array.from({ length: 64 }, (_, index) => {
+    const sine = (Math.sin(index * 0.78 + energy * 5.8) + 1) * 0.5;
+    const stagger = ((index * 19) % 43) / 100;
+    const centerBias = 1 - Math.abs(index - 31.5) / 40;
+    const variation = 0.42 + sine * 0.68 + stagger * 0.72 + centerBias * 0.32;
+    const bar = signalActive
+      ? Math.min(100, Math.max(8, Math.round(10 + energy * 156 * variation)))
+      : Math.min(18, Math.max(3, Math.round(4 + variation * 7)));
+    return (
+      <i
+        key={index}
+        style={{
+          "--bar": `${bar}%`,
+          "--delay": `${-index * 28}ms`,
+          "--alpha": (signalActive ? 0.36 + energy * 0.64 : 0.24).toFixed(3)
+        }}
+      />
+    );
+  });
   const state = visualState === "speaking" ? "TRANSMITTING" : visualState === "thinking" ? "PROCESSING" : visualState === "listening" ? "LISTENING" : "STANDBY";
   const model = activation?.model || activation?.provider || "未配置";
   const memoryCount = status?.memory_count ?? caps.memory?.count ?? "--";
@@ -519,7 +555,7 @@ function JarvisWorkbench({ visualState, interfaceMode, readiness, status, activa
       <div className="workbench-diagnostics">
         <div className="diagnostic-block signal-block">
           <span>实时语音波形 / LIVE AUDIO</span>
-          <div className="signal-wave" aria-hidden="true">{Array.from({ length: 54 }, (_, index) => { const variation = 0.42 + ((index * 17) % 31) / 100; return <i key={index} style={{ "--bar": `${Math.max(5, Math.round((8 + audioLevel * 92 * variation)))}%` }} />; })}</div>
+          <div className={cls("signal-wave", signalActive && "active")} style={{ "--signal-energy": energy.toFixed(3), "--signal-glow": `${(6 + energy * 14).toFixed(1)}px` }} aria-hidden="true">{signalBars}</div>
           <div className="signal-meta"><em>PCM / LOCAL</em><b>{visualState === "speaking" ? "ACTIVE" : "QUIET"}</b></div>
         </div>
       </div>
@@ -743,7 +779,8 @@ function EngineeringConsole({ status, open, onClose, onRun, onCancel, onPermissi
 function AgentPortrait({ state, voiceStatusText, sending, mode, audioLevel = 0 }) {
   const video = VISUALS[state] || VISUALS.idle;
   const [videoFailed, setVideoFailed] = useState(false);
-  const energy = Math.min(1, Math.max(0, Number(audioLevel) || 0));
+  const energy = amplifyAudioLevel(audioLevel);
+  const particleEnergy = clamp01(Math.pow(energy, 1.45) * 0.42);
   const frameShift = state === "speaking" ? -1.5 - energy * 2.4 : state === "listening" ? -1.2 - energy * 1.1 : state === "thinking" ? -0.4 : 0;
   const frameScale = state === "speaking"
     ? 1.015 + energy * 0.045
@@ -778,6 +815,12 @@ function AgentPortrait({ state, voiceStatusText, sending, mode, audioLevel = 0 }
       : state === "thinking"
         ? "saturate(0.96) contrast(1.18) brightness(0.95)"
         : "saturate(0.96) contrast(1.14) brightness(0.94)";
+  const activeAudioState = mode === "active" && (state === "speaking" || state === "listening");
+  const waveOpacity = activeAudioState
+    ? state === "speaking"
+      ? 0.18 + energy * 0.34
+      : 0.1 + energy * 0.22
+    : 0;
   const energyStyle = {
     "--voice-energy": energy.toFixed(3),
     "--aurora-blur": `${(14 + energy * 12).toFixed(1)}px`,
@@ -785,6 +828,12 @@ function AgentPortrait({ state, voiceStatusText, sending, mode, audioLevel = 0 }
     "--aurora-scale": (0.98 + energy * 0.08).toFixed(3),
     "--aurora-scale-low": (0.97 + energy * 0.06).toFixed(3),
     "--aurora-scale-high": (1.03 + energy * 0.1).toFixed(3),
+    "--wave-opacity": waveOpacity.toFixed(3),
+    "--wave-opacity-soft": (waveOpacity * 0.75).toFixed(3),
+    "--wave-opacity-low": (waveOpacity * 0.72).toFixed(3),
+    "--wave-scale": (0.94 + energy * 0.18).toFixed(3),
+    "--wave-scale-low": (0.94 + energy * 0.09).toFixed(3),
+    "--wave-scale-high": (1.0 + energy * 0.22).toFixed(3),
     "--voice-canvas-opacity": Math.min(0.98, canvasBaseOpacity + energy * 0.16).toFixed(3)
   };
 
@@ -829,7 +878,8 @@ function AgentPortrait({ state, voiceStatusText, sending, mode, audioLevel = 0 }
             transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
           />
         </AnimatePresence>
-        <JarvisParticleVortex state={state} audioLevel={energy} />
+        <JarvisParticleVortex state={state} audioLevel={particleEnergy} />
+        <div className="entity-waveform" aria-hidden="true" />
         <div className="entity-matte" />
         <div className="entity-aurora" aria-hidden="true" />
         <div id="voice-panel" className="voice-panel">
@@ -2392,6 +2442,37 @@ function App() {
   }, [messages, sending]);
 
   useEffect(() => {
+    let disposed = false;
+    const install = async () => {
+      let probeMode = "";
+      let version = "";
+      try { probeMode = await window.jarvisDesktop?.getProbeMode?.() || ""; } catch {}
+      try { version = await window.jarvisDesktop?.getVersion?.() || ""; } catch {}
+      const allowed = probeMode || version === "screenshot" || /\bvisual-probe\b/i.test(window.location.search || "");
+      if (disposed || !allowed) return;
+      window.__jarvisVisualProbe = {
+        required: ["idle", "listening", "thinking", "speaking", "alert"],
+        setState: (nextState = "idle", level) => {
+          const next = ["idle", "listening", "thinking", "speaking", "alert"].includes(nextState) ? nextState : "idle";
+          const defaultLevel = next === "speaking" ? 0.88 : next === "listening" ? 0.62 : next === "thinking" ? 0.34 : 0.08;
+          setInterfaceMode("active");
+          setEngineeringOpen(false);
+          setSending(next === "thinking" || next === "speaking");
+          setVisualState(next);
+          setAudioLevel(Math.min(1, Math.max(0, Number(level ?? defaultLevel) || 0)));
+          setVoiceStatusText(`VISUAL PROBE / ${next.toUpperCase()}`);
+        },
+        setAudioLevel: (level = 0) => setAudioLevel(Math.min(1, Math.max(0, Number(level) || 0))),
+      };
+    };
+    install();
+    return () => {
+      disposed = true;
+      delete window.__jarvisVisualProbe;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!api || voiceInitializedRef.current) return undefined;
     voiceInitializedRef.current = true;
     const timer = window.setTimeout(() => {
@@ -2505,6 +2586,24 @@ function App() {
     return [...messages].reverse().find((item) => item.role === "jarvis")?.content || "";
   }, [messages]);
 
+  const dockEnergy = amplifyAudioLevel(audioLevel);
+  const dockBars = Array.from({ length: 18 }, (_, index) => {
+    const variation = 0.5 + ((index * 23) % 41) / 100 + ((Math.sin(index * 1.16 + dockEnergy * 5.4) + 1) * 0.28);
+    const bar = voiceActive
+      ? Math.min(100, Math.max(12, Math.round(16 + dockEnergy * 132 * variation)))
+      : 18 + ((index * 17) % 34);
+    return (
+      <i
+        key={index}
+        style={{
+          "--bar": `${bar}%`,
+          "--delay": `${-index * 32}ms`,
+          "--alpha": (voiceActive ? 0.48 + dockEnergy * 0.52 : 0.28).toFixed(3)
+        }}
+      />
+    );
+  });
+
   const caps = readiness?.capabilities || {};
   const activationPending = activation === null;
   const readinessPending = readiness === null;
@@ -2572,6 +2671,15 @@ function App() {
         </div>
 
         <StandbyLayer />
+        <button
+          className="standby-entry"
+          type="button"
+          onClick={() => enterWorkbench({ listenAfter: false })}
+          aria-label="进入工作台"
+          title="进入工作台"
+        >
+          <ArrowRight size={22} aria-hidden="true" />
+        </button>
 
         <HudTerminal messages={messages} sending={sending} lastError={lastError} />
 
@@ -2637,7 +2745,7 @@ function App() {
             {voiceActive ? <MicOff size={18} /> : <Mic size={18} />}
             <span className="sr-only">{voiceActive ? "结束语音" : "语音"}</span>
           </button>
-          <div className={cls("dock-wave", voiceActive && "active")} aria-hidden="true">{Array.from({ length: 14 }, (_, index) => <i key={index} style={{ "--bar": `${24 + ((index * 17) % 66)}%` }} />)}</div>
+          <div className={cls("dock-wave", voiceActive && "active")} style={{ "--signal-energy": dockEnergy.toFixed(3), "--signal-glow": `${(5 + dockEnergy * 11).toFixed(1)}px` }} aria-hidden="true">{dockBars}</div>
           <div className="dock-input">
             <Activity size={16} />
             <textarea

@@ -8,9 +8,17 @@ const mode = String(process.env.JARVIS_SHORTCUT_MODE || process.argv[2] || "desk
 const isWebMode = mode === "web" || mode === "--web";
 const target = isWebMode
   ? path.join(process.env.SystemRoot || "C:\\Windows", "System32", "cmd.exe")
-  : path.join(root, "dist", "win-unpacked", "Jarvis.exe");
+  : path.join(root, "dist", "win-unpacked", "GDDXX-Jarvis.exe");
 const desktop = path.join(os.homedir(), "Desktop");
-const linkPath = path.join(desktop, "Jarvis.lnk");
+const linkPath = path.join(desktop, "GDDXX-Jarvis.lnk");
+const startMenuLinkPath = path.join(
+  process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"),
+  "Microsoft",
+  "Windows",
+  "Start Menu",
+  "Programs",
+  "GDDXX-Jarvis.lnk"
+);
 const description = isWebMode
   ? "Jarvis web Agent - source fallback launcher"
   : "Jarvis desktop Agent - current local build";
@@ -31,18 +39,21 @@ if (!fs.existsSync(target)) {
 }
 
 fs.mkdirSync(desktop, { recursive: true });
+fs.mkdirSync(path.dirname(startMenuLinkPath), { recursive: true });
 
 const command = `
 $ErrorActionPreference = 'Stop'
 $shell = New-Object -ComObject WScript.Shell
-$shortcut = $shell.CreateShortcut($env:JARVIS_SHORTCUT_PATH)
-$shortcut.TargetPath = $env:JARVIS_SHORTCUT_TARGET
-$shortcut.Arguments = $env:JARVIS_SHORTCUT_ARGUMENTS
-$shortcut.WorkingDirectory = $env:JARVIS_SHORTCUT_WORKDIR
-$shortcut.IconLocation = $env:JARVIS_SHORTCUT_ICON
-$shortcut.Description = $env:JARVIS_SHORTCUT_DESCRIPTION
-$shortcut.WindowStyle = 1
-$shortcut.Save()
+foreach ($shortcutPath in @($env:JARVIS_SHORTCUT_PATH, $env:JARVIS_START_MENU_SHORTCUT_PATH)) {
+  $shortcut = $shell.CreateShortcut($shortcutPath)
+  $shortcut.TargetPath = $env:JARVIS_SHORTCUT_TARGET
+  $shortcut.Arguments = $env:JARVIS_SHORTCUT_ARGUMENTS
+  $shortcut.WorkingDirectory = $env:JARVIS_SHORTCUT_WORKDIR
+  $shortcut.IconLocation = $env:JARVIS_SHORTCUT_ICON
+  $shortcut.Description = $env:JARVIS_SHORTCUT_DESCRIPTION
+  $shortcut.WindowStyle = 1
+  $shortcut.Save()
+}
 `;
 
 const result = childProcess.spawnSync("powershell.exe", [
@@ -56,6 +67,7 @@ const result = childProcess.spawnSync("powershell.exe", [
   env: {
     ...process.env,
     JARVIS_SHORTCUT_PATH: linkPath,
+    JARVIS_START_MENU_SHORTCUT_PATH: startMenuLinkPath,
     JARVIS_SHORTCUT_TARGET: target,
     JARVIS_SHORTCUT_ARGUMENTS: argumentsValue,
     JARVIS_SHORTCUT_WORKDIR: workdir,
@@ -82,6 +94,7 @@ process.stdout.write(`${JSON.stringify({
   ok: true,
   mode: isWebMode ? "web" : "desktop",
   shortcut: linkPath,
+  startMenuShortcut: startMenuLinkPath,
   target,
   arguments: argumentsValue,
   workingDirectory: workdir,

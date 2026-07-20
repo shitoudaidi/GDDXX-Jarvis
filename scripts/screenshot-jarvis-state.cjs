@@ -8,6 +8,7 @@ ipcMain.handle("jarvis:get-backend-port", () => 3721);
 const root = path.resolve(__dirname, "..");
 const state = process.argv[2] || "idle";
 const out = process.argv[3] || path.join(root, `jarvis-${state}-preview.png`);
+const level = process.argv[4] === undefined ? undefined : Math.min(1, Math.max(0, Number(process.argv[4]) || 0));
 
 app.whenReady().then(async () => {
   const win = new BrowserWindow({
@@ -28,7 +29,7 @@ app.whenReady().then(async () => {
 
   await win.loadFile(path.join(root, "src", "ui", "jarvis", "index.html"));
   await new Promise((resolve) => setTimeout(resolve, 3000));
-  await win.webContents.executeJavaScript(`window.__jarvisVisualProbe?.setState?.(${JSON.stringify(state)})`, true);
+  await win.webContents.executeJavaScript(`window.__jarvisVisualProbe?.setState?.(${JSON.stringify(state)}, ${level === undefined ? "undefined" : JSON.stringify(level)})`, true);
   await new Promise((resolve) => setTimeout(resolve, 1800));
   const image = await win.webContents.capturePage();
   fs.writeFileSync(out, image.toPNG());
@@ -37,6 +38,7 @@ app.whenReady().then(async () => {
     return {
       out: ${JSON.stringify(out)},
       state: ${JSON.stringify(state)},
+      level: ${level === undefined ? "null" : JSON.stringify(level)},
       activeVideo: video?.getAttribute("src") || "",
       readyState: video?.readyState || 0,
       currentTime: video ? Number(video.currentTime.toFixed(2)) : 0,

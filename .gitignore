@@ -17,6 +17,7 @@ logs/
 /runtime/
 /output/
 /tmp/
+/.tmp-web-probe/
 /tools/
 /config.json
 /config.local.json

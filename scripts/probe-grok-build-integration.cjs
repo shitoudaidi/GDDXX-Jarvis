@@ -34,7 +34,7 @@ async function main() {
     try { bridge.cancelGrokBuildTask(current?.id) } catch {}
     throw new Error(`Grok Build probe did not complete: ${current?.status || 'timeout'} ${current?.error || ''}`)
   }
-  if (!/jarvis-local-agent/i.test(current.output || '')) {
+  if (!/gddxx-jarvis/i.test(current.output || '')) {
     throw new Error(`Grok Build output did not contain the package name: ${(current.output || '').slice(0, 500)}`)
   }
   let permissionProbe = null

@@ -11,6 +11,8 @@ uniform float uPointSize;
 uniform int uEffectMode;
 uniform float uEffectIntensity;
 uniform float uAudioLevel;
+uniform float uAudioDrive;
+uniform float uAudioSpike;
 attribute vec3 targetPosition;
 attribute vec3 targetColor;
 attribute vec3 color;
@@ -45,6 +47,10 @@ float snoise(vec2 v) {
   return 130.0 * dot(m, g);
 }
 
+vec3 safeNormalize(vec3 v) {
+  return normalize(v + vec3(0.0001, 0.0001, 0.0001));
+}
+
 void main() {
   vec3 mixedBase = mix(color, targetColor, uMorph);
   vec3 stateTint = mix(vec3(0.72, 0.9, 0.92), vec3(1.0, 0.82, 0.46), uAudioLevel * 0.55);
@@ -52,7 +58,9 @@ void main() {
 
   vec3 pos = mix(position, targetPosition, uMorph);
   vec3 originalPos = pos;
-  float effectMix = uEffectIntensity + uAudioLevel * 0.55;
+  float audioDrive = clamp(uAudioDrive, 0.0, 2.0);
+  float audioSpike = clamp(uAudioSpike, 0.0, 2.0);
+  float effectMix = uEffectIntensity + uAudioLevel * 0.48 + audioDrive * 0.18;
 
   if (uEffectMode == 0) {
     float noise = sin(uTime * 1.5 + position.x * 0.3) * cos(uTime * 1.5 + position.y * 0.3);
@@ -79,12 +87,28 @@ void main() {
     pos.z = sin(newAngle) * newRadius;
     pos.y = height + lift * sin(uTime + radius * 0.08);
   } else if (uEffectMode == 4) {
-    float pulsePhase = uTime * (2.2 + uAudioLevel * 3.6);
-    float pulseFactor = 1.0 + sin(pulsePhase) * (0.14 + uAudioLevel * 0.36) * effectMix;
-    float waveFactor = sin(pulsePhase + length(pos) * 0.18) * (0.24 + uAudioLevel * 0.45) * effectMix;
+    float pulsePhase = uTime * (2.0 + uAudioLevel * 3.0);
+    float pulseFactor = 1.0 + sin(pulsePhase) * (0.12 + uAudioLevel * 0.28) * effectMix;
+    float waveFactor = sin(pulsePhase + length(pos) * 0.18) * (0.22 + uAudioLevel * 0.32) * effectMix;
     pos *= pulseFactor;
-    pos += normalize(pos + randomOffset * 0.2) * waveFactor * 2.15;
-    vColor = mix(vColor, vec3(1.0, 0.86, 0.5), (0.22 + uAudioLevel * 0.42) * effectMix);
+    pos += safeNormalize(pos + randomOffset * 0.2) * waveFactor * 1.95;
+    pos.y += sin(pulsePhase * 0.6 + length(pos.xz) * 0.18) * effectMix * (0.42 + audioDrive * 0.22);
+    vColor = mix(vColor, vec3(1.0, 0.86, 0.5), (0.2 + uAudioLevel * 0.32) * effectMix);
+  } else if (uEffectMode == 6) {
+    float voice = clamp(0.1 + uEffectIntensity * 0.68 + audioDrive * 0.95 + audioSpike * 0.86, 0.0, 2.6);
+    float radius = length(pos.xz);
+    float height = pos.y;
+    float shell = smoothstep(1.8, 17.5, radius);
+    float center = 1.0 - clamp(abs(height) / 26.0, 0.0, 1.0);
+    vec3 radialDir = safeNormalize(pos + randomOffset * 0.16);
+    float ringA = sin(radius * 0.68 - uTime * (4.2 + voice * 1.3) + height * 0.09);
+    float ringB = sin(height * 0.54 + uTime * (6.8 + voice * 2.6) + radius * 0.16);
+    float chatter = snoise(vec2(radius * 0.18 + uTime * 0.55, height * 0.16 - uTime * 0.95));
+    float coreLift = (0.88 + shell * 1.65 + center * 0.52) * voice;
+    pos += radialDir * (ringA * 1.65 + chatter * 1.1 + voice * 0.78) * coreLift;
+    pos.y += (ringB * 1.35 + chatter * 0.72) * voice * (0.56 + shell);
+    pos.xz *= 1.0 + (ringA * 0.036 + audioSpike * 0.026) * (0.34 + shell * 0.82);
+    vColor = mix(vColor, vec3(0.68, 0.95, 1.0), clamp(0.14 + voice * 0.12, 0.0, 1.0));
   } else if (uEffectMode == 5) {
     float waveX = sin(pos.x * 0.34 + uTime * 1.6) * effectMix * 2.1;
     float waveZ = cos(pos.z * 0.34 + uTime * 1.25) * effectMix * 1.4;
@@ -97,7 +121,7 @@ void main() {
   vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
   float dist = length(pos);
   vDistance = dist;
-  float sizePulse = 1.0 + sin(uTime * 2.5 + dist * 0.12) * (0.28 + uAudioLevel * 0.22);
+  float sizePulse = 1.0 + sin(uTime * 2.4 + dist * 0.12) * (0.22 + uAudioLevel * 0.2) + audioSpike * 0.14;
   gl_PointSize = (uPointSize / max(-mvPosition.z, 0.01)) * sizePulse;
   gl_Position = projectionMatrix * mvPosition;
 }
@@ -120,8 +144,8 @@ void main() {
 `;
 
 function stateSettings(state, level) {
-  if (state === "speaking") return { mode: 4, intensity: 0.56 + level * 0.28, speed: 1.08 + level * 1.32, size: 50 + level * 18 };
-  if (state === "listening") return { mode: 0, intensity: 0.24 + level * 0.16, speed: 0.78 + level * 0.68, size: 47 + level * 10 };
+  if (state === "speaking") return { mode: 6, intensity: 0.56 + level * 0.28, speed: 1.08 + level * 1.08, size: 52 + level * 16 };
+  if (state === "listening") return { mode: 4, intensity: 0.2 + level * 0.14, speed: 0.82 + level * 0.52, size: 44 + level * 10 };
   if (state === "thinking") return { mode: 5, intensity: 0.42 + level * 0.12, speed: 0.96, size: 48 };
   if (state === "alert") return { mode: 1, intensity: 0.62, speed: 1.0, size: 58 };
   return { mode: 0, intensity: 0.18, speed: 0.58, size: 45 };
@@ -265,6 +289,8 @@ export default function JarvisParticleVortex({ state = "idle", audioLevel = 0, c
           uEffectMode: { value: 3 },
           uEffectIntensity: { value: 0.28 },
           uAudioLevel: { value: 0 },
+          uAudioDrive: { value: 0 },
+          uAudioSpike: { value: 0 },
         },
       });
 
@@ -277,6 +303,8 @@ export default function JarvisParticleVortex({ state = "idle", audioLevel = 0, c
       let morph = 0;
       let effectIntensity = 0.28;
       let pointSize = 50;
+      let audioDrive = 0;
+      let audioSpike = 0;
 
       const resize = () => {
         if (!container || disposed || !renderer) return;
@@ -300,6 +328,10 @@ export default function JarvisParticleVortex({ state = "idle", audioLevel = 0, c
         morph += (1 - morph) * 0.045;
         effectIntensity += (settings.intensity - effectIntensity) * 0.075;
         pointSize += (settings.size - pointSize) * 0.08;
+        const targetAudio = Math.min(1, Math.max(0, Number(live.audioLevel) || 0));
+        const audioRise = Math.max(0, targetAudio - material.uniforms.uAudioLevel.value);
+        audioDrive += ((settings.mode === 6 ? targetAudio * 1.1 + audioRise * 1.8 : settings.mode === 4 ? targetAudio * 0.9 + audioRise * 1.2 : targetAudio * 1.08) - audioDrive) * 0.18;
+        audioSpike += ((settings.mode === 6 ? Math.max(audioRise * 3.1, targetAudio * 0.28) : settings.mode === 4 ? Math.max(audioRise * 1.4, targetAudio * 0.18) : targetAudio * 0.24) - audioSpike) * 0.32;
 
         points.rotation.y += (0.0016 + effectIntensity * 0.0019 + live.audioLevel * 0.004);
         points.rotation.z += 0.0004 + live.audioLevel * 0.0011;
@@ -309,7 +341,9 @@ export default function JarvisParticleVortex({ state = "idle", audioLevel = 0, c
         material.uniforms.uMorph.value = morph;
         material.uniforms.uEffectMode.value = settings.mode;
         material.uniforms.uEffectIntensity.value = effectIntensity;
-        material.uniforms.uAudioLevel.value += (live.audioLevel - material.uniforms.uAudioLevel.value) * 0.22;
+        material.uniforms.uAudioLevel.value += (targetAudio - material.uniforms.uAudioLevel.value) * 0.24;
+        material.uniforms.uAudioDrive.value += (audioDrive - material.uniforms.uAudioDrive.value) * 0.34;
+        material.uniforms.uAudioSpike.value += (audioSpike - material.uniforms.uAudioSpike.value) * 0.4;
         material.uniforms.uPointSize.value = pointSize;
 
         renderer.render(scene, camera);

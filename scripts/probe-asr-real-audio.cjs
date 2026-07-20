@@ -4,8 +4,9 @@ const os = require("node:os");
 const path = require("node:path");
 const WebSocket = require("ws");
 
-const url = process.argv[2] || "ws://127.0.0.1:3721/voice/cloud";
-const provider = process.argv[3] || "aliyun";
+const port = Number(process.env.JARVIS_PORT || 3721);
+const url = process.argv[2] || `ws://127.0.0.1:${port}/voice/cloud`;
+const provider = process.argv[3] || "local";
 const timeoutMs = Number(process.argv[4] || 30000);
 const phrase = process.argv[5] || "\u6d4b\u8bd5\u8bed\u97f3\u8bc6\u522b"; // 测试语音识别
 

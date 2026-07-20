@@ -39,12 +39,35 @@ function resolveServer() {
 }
 
 function findPython() {
-  return process.env.JARVIS_PYTHON ||
-    (process.platform === 'win32' ? 'python' : 'python3')
+  if (process.env.JARVIS_PYTHON && fs.existsSync(process.env.JARVIS_PYTHON)) return process.env.JARVIS_PYTHON
+  const resourcesDir = process.env.JARVIS_RESOURCES_DIR || ''
+  const roots = [
+    resourcesDir.endsWith('.asar') ? resourcesDir.replace(/\.asar$/, '.asar.unpacked') : resourcesDir,
+    path.resolve(__dirname, '..', '..', '..'),
+    process.cwd(),
+  ].filter(Boolean)
+  const relative = process.platform === 'win32' ? path.join('.venv', 'Scripts', 'python.exe') : path.join('.venv', 'bin', 'python')
+  const bundled = roots.map(root => path.join(root, relative)).find(candidate => fs.existsSync(candidate))
+  return bundled || (process.platform === 'win32' ? 'python' : 'python3')
+}
+
+function findWhisperModelDir() {
+  if (process.env.JARVIS_WHISPER_MODEL_DIR && fs.existsSync(process.env.JARVIS_WHISPER_MODEL_DIR)) return process.env.JARVIS_WHISPER_MODEL_DIR
+  const resourcesDir = process.env.JARVIS_RESOURCES_DIR || ''
+  const roots = [
+    resourcesDir.endsWith('.asar') ? resourcesDir.replace(/\.asar$/, '.asar.unpacked') : resourcesDir,
+    path.resolve(__dirname, '..', '..', '..'),
+    process.cwd(),
+  ].filter(Boolean)
+  return roots.map(root => path.join(root, 'models', 'whisper')).find(candidate => fs.existsSync(candidate)) || ''
 }
 
 export function getVoiceStatus() {
   const server = resolveServer()
+  const python = server.mode === 'python' ? findPython() : null
+  const modelDir = findWhisperModelDir()
+  const modelName = process.env.JARVIS_WHISPER_MODEL || 'tiny'
+  const modelAvailable = server.mode === 'exe' || !!(modelDir && fs.existsSync(path.join(modelDir, `${modelName}.pt`)))
   return {
     status,
     message: statusMessage,
@@ -52,6 +75,10 @@ export function getVoiceStatus() {
     pid: proc?.pid ?? null,
     available: fs.existsSync(server.path),
     server,
+    runtimeAvailable: server.mode === 'exe' || !!(python && fs.existsSync(python)),
+    modelAvailable,
+    model: modelName,
+    modelDir,
   }
 }
 
@@ -83,7 +110,12 @@ export function startVoiceServer({ model = process.env.JARVIS_WHISPER_MODEL || '
   proc = spawn(command, args, {
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
-    env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
+    env: {
+      ...process.env,
+      PYTHONIOENCODING: 'utf-8',
+      PYTHONUTF8: '1',
+      JARVIS_WHISPER_MODEL_DIR: findWhisperModelDir(),
+    },
   })
 
   proc.stdout.on('data', (data) => {

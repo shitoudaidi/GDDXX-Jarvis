@@ -1,7 +1,7 @@
 {
   "name": "gddxx-jarvis",
   "productName": "GDDXX-Jarvis",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "GDDXX-Jarvis: a local desktop Agent that helps you talk, monitor information, and get real work done.",
   "author": "GDDXX-Jarvis Project",
   "main": "electron/main.cjs",
@@ -42,7 +42,7 @@
     "probe:ui-config-state": "node scripts/probe-ui-config-state.cjs",
     "probe:key-intake": "node scripts/probe-key-intake.cjs",
     "probe:asr-route": "node scripts/probe-asr-routing.cjs",
-    "probe:asr-real-audio": "node scripts/probe-asr-real-audio.cjs",
+    "probe:asr-real-audio": "node scripts/probe-server-launcher.cjs scripts/probe-asr-real-audio.cjs",
     "monitor:asr-until": "node scripts/monitor-asr-until.cjs",
     "probe:asr-local-defaults": "node scripts/probe-asr-local-defaults.cjs",
     "probe:asr-start": "node scripts/probe-asr-start.cjs",
@@ -51,6 +51,7 @@
     "probe:vector-memory": "node scripts/probe-vector-memory.cjs",
     "probe:system-tts": "node scripts/probe-system-tts-provider.cjs",
     "voice:install:jarvis": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-jarvis-voice.ps1",
+    "voice:install:local-asr": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-local-asr.ps1",
     "probe:jarvis-tts": "node scripts/probe-jarvis-tts.cjs",
     "probe:tts-backend-fallback": "node scripts/probe-tts-backend-fallback.cjs",
     "probe:tts-echo-guards": "node scripts/probe-tts-echo-guards.cjs",
@@ -58,8 +59,9 @@
     "rebuild:native": "node ./node_modules/electron-builder/cli.js install-app-deps",
     "rebuild:web": "npm rebuild better-sqlite3",
     "postinstall": "node ./node_modules/electron-builder/cli.js install-app-deps",
-    "pack": "npm run check && node scripts/build.cjs --dir",
-    "dist": "npm run check && node scripts/build.cjs --win nsis"
+    "verify:voice-bundle": "node scripts/probe-local-voice-bundle.cjs",
+    "pack": "npm run check && npm run verify:voice-bundle && node scripts/build.cjs --dir",
+    "dist": "npm run check && npm run verify:voice-bundle && node scripts/build.cjs --win nsis"
   },
   "dependencies": {
     "better-sqlite3": "^12.8.0",

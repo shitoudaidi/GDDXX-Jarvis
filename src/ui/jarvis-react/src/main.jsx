@@ -994,7 +994,7 @@ function FirstRunSetup({ api, onComplete }) {
           <legend>语音识别</legend>
           <label className={cls("voice-option", voiceProvider === "local" && "selected")}>
             <input type="radio" name="voice-provider" value="local" checked={voiceProvider === "local"} onChange={() => setVoiceProvider("local")} />
-            <span><strong>本地</strong><small>语音在电脑上处理，无需额外密钥</small></span>
+            <span><strong>本地</strong><small>语音在电脑上处理，安装包已包含识别模型</small></span>
           </label>
           <label className={cls("voice-option", voiceProvider === "aliyun" && "selected")}>
             <input type="radio" name="voice-provider" value="aliyun" checked={voiceProvider === "aliyun"} onChange={() => setVoiceProvider("aliyun")} />
@@ -2010,7 +2010,7 @@ function App() {
     const task = (async () => {
       wakeMetricsRef.current.sequenceStartedAt = performance.now();
       voiceBlockedUntilRef.current = Date.now() + VOICE_POST_TTS_BLOCK_MS;
-      const wakeGreeting = getWakeGreeting();
+      const wakeGreeting = WAKE_GREETING;
       const greetingAudio = prepareSpeechBlob(wakeGreeting, { cache: false });
       const readinessRequest = apiFetch("/readiness", { timeoutMs: 5000 }).catch(() => readiness);
       setMessages((current) => [

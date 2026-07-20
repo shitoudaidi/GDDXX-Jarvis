@@ -12,7 +12,7 @@ import { getQuotaStatus } from './quota.js'
 import { isRunning, stopLoop, startLoop } from './control.js'
 import { buildHeartbeatSystemPromptPreview } from './system-prompt-preview.js'
 import { paths } from './paths.js'
-import { config, activate as activateLLM, prepareActivation as prepareLLMActivation, commitPreparedActivation, getActivationStatus, switchModel, saveLLMSettings, setTemperature, setThinking, getSocialConfig, setSocialConfig, getVoiceConfig, setVoiceConfig, getTTSConfig, setTTSConfig, getTTSCredentials, getProviderSummaries, getSecurity, setSecurity, getSeedanceConfig, setSeedanceConfig, getEmbeddingConfig, setEmbeddingConfig, EMBEDDING_PROVIDER_PRESETS, getWebSearchConfig, setWebSearchConfig } from './config.js'
+import { config, activate as activateLLM, prepareActivation as prepareLLMActivation, commitPreparedActivation, getActivationStatus, switchModel, saveLLMSettings, setTemperature, setThinking, getMinimaxKey, getSocialConfig, setSocialConfig, getVoiceConfig, setVoiceConfig, getTTSConfig, setTTSConfig, getTTSCredentials, getProviderSummaries, getSecurity, setSecurity, getSeedanceConfig, setSeedanceConfig, getEmbeddingConfig, setEmbeddingConfig, EMBEDDING_PROVIDER_PRESETS, getWebSearchConfig, setWebSearchConfig } from './config.js'
 import { streamTTS, TTS_PROVIDERS, TTS_VOICES, validateTTSConfig } from './voice/tts-providers.js'
 import { restartConnector } from './social/index.js'
 // manager.js (Whisper local server) removed
@@ -615,7 +615,12 @@ function buildReadinessReport() {
   const voice = getVoiceConfig()
   const voiceCfg = voice || {}
   const voiceProvider = voiceCfg.voiceProvider || 'local'
+  const localVoiceStatus = getVoiceStatus()
   const voiceMissing = missingVoiceFields(voiceProvider, voiceCfg)
+  if (voiceProvider === 'local' || voiceProvider === 'whisper') {
+    if (!localVoiceStatus.available || !localVoiceStatus.runtimeAvailable) voiceMissing.push('local runtime')
+    if (!localVoiceStatus.modelAvailable) voiceMissing.push('Whisper model')
+  }
   const tts = getTTSConfig()
   const ttsProvider = tts.ttsProvider || tts.provider || 'jarvis'
   const ttsMissing = missingTTSFields(ttsProvider, tts)
@@ -647,7 +652,14 @@ function buildReadinessReport() {
       provider: activation.provider || settings?.llm?.provider || null,
       model: activation.model || settings?.llm?.model || settings?.providers?.deepseek?.model || null,
     },
-    asr: { ready: voiceMissing.length === 0, provider: voiceProvider, missing: voiceMissing },
+    asr: {
+      ready: voiceMissing.length === 0,
+      provider: voiceProvider,
+      missing: voiceMissing,
+      localRuntimeAvailable: !!localVoiceStatus.runtimeAvailable,
+      localModelAvailable: !!localVoiceStatus.modelAvailable,
+      localModel: localVoiceStatus.model || '',
+    },
     tts: {
       ready: ttsLocalReady || ttsCloudReady || ttsNativeReady,
       localReady: ttsLocalReady,

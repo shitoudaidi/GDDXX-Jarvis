@@ -169,7 +169,8 @@ class VoiceServer:
 
     def load_whisper(self):
         print(f"[语音] 加载 Whisper 模型: {self.model_name}…", flush=True)
-        self.model = _whisper.load_model(self.model_name)
+        model_dir = os.environ.get("JARVIS_WHISPER_MODEL_DIR") or None
+        self.model = _whisper.load_model(self.model_name, download_root=model_dir)
         print(f"[语音] Whisper ({self.model_name}) 加载完成", flush=True)
 
     # 按语言准备 initial_prompt（轻量上下文，帮助 Whisper 选择正确的同音字/字符集）

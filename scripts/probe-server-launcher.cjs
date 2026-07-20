@@ -34,6 +34,9 @@ function ready(port) {
 ;(async () => {
   const port = await reservePort()
   const userDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jarvis-probe-server-'))
+  fs.writeFileSync(path.join(userDir, 'config.json'), JSON.stringify({
+    voice: { voiceProvider: 'local', ttsProvider: 'jarvis' },
+  }, null, 2))
   const electronPath = path.join(root, 'node_modules', 'electron', 'dist', 'electron.exe')
   const server = childProcess.spawn(electronPath, ['.'], {
     cwd: root,

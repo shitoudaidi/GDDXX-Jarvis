@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-windows-installer:
@@ -48,3 +48,10 @@ jobs:
           path: dist/GDDXX-Jarvis-Windows-x64-Setup-*.exe
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/GDDXX-Jarvis-Windows-x64-Setup-*.exe

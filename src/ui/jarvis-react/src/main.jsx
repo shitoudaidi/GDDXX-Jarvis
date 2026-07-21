@@ -11,6 +11,7 @@ import {
   Database,
   FileText,
   KeyRound,
+  Keyboard,
   GitCompare,
   ListTodo,
   Loader2,
@@ -1018,7 +1019,7 @@ function FirstRunSetup({ api, onComplete }) {
   );
 }
 
-function HudTerminal({ messages, sending, lastError }) {
+function HudTerminal({ messages, sending, lastError, turnState }) {
   const visibleMessages = messages.slice(-40);
   const terminalRef = useRef(null);
 
@@ -1035,11 +1036,18 @@ function HudTerminal({ messages, sending, lastError }) {
     <aside className="hud-terminal" aria-label="对话记录">
       <div className="terminal-cap">
         <div><span>对话历史</span><small>CONVERSATION HISTORY</small></div>
-        {sending ? <Loader2 className="spin" size={13} /> : <Radio size={13} />}
+        <div className={cls("turn-owner", turnState.tone)} aria-live="polite">
+          {sending ? <Loader2 className="spin" size={13} /> : <Radio size={13} />}
+          <span>{turnState.label}</span>
+        </div>
       </div>
       <div className="terminal-lines" ref={terminalRef}>
         {visibleMessages.length === 0 ? (
-          <p className="terminal-empty">Awaiting command input.</p>
+          <div className="terminal-empty">
+            <Radio size={18} aria-hidden="true" />
+            <strong>等待您的指令</strong>
+            <span>点击麦克风，或按住空格说话</span>
+          </div>
         ) : visibleMessages.map((message) => (
           <div key={message.id} className={cls("terminal-line", message.role)}>
             <div className="terminal-line-head">
@@ -1632,6 +1640,7 @@ function App() {
   const [interfaceMode, setInterfaceMode] = useState("standby");
   const [musicEnabled, setMusicEnabled] = useState(() => isAmbientMusicEnabled());
   const [engineeringOpen, setEngineeringOpen] = useState(false);
+  const [textInputOpen, setTextInputOpen] = useState(false);
   const [grokBuildStatus, setGrokBuildStatus] = useState(null);
   const { cards: acuiCards, connected: acuiConnected, dismissCard: dismissAcuiCard } = useAcuiCards(api);
 
@@ -1678,6 +1687,7 @@ function App() {
   const activeTurnRef = useRef(null);
   const visibleStreamRef = useRef(false);
   const postReplyListenMetricsRef = useRef({ scheduledAt: 0, startedAt: 0 });
+  const voiceRepairCountRef = useRef(0);
 
   useEffect(() => {
     interfaceModeRef.current = interfaceMode;
@@ -2623,8 +2633,9 @@ function App() {
 
   useEffect(() => {
     const onVoiceTranscript = (event) => {
-      if (interfaceModeRef.current !== "standby" || wakeAcceptedRef.current) return;
       const text = String(event.detail?.text || event.detail?.accumulated || "").trim();
+      if (text) voiceRepairCountRef.current = 0;
+      if (interfaceModeRef.current !== "standby" || wakeAcceptedRef.current) return;
       if (text) {
         try {
           const recent = JSON.parse(localStorage.getItem("jarvis-wake-diagnostics") || "[]");
@@ -2643,7 +2654,15 @@ function App() {
 
   useEffect(() => {
     const onVoiceError = (event) => {
-      const message = event.detail?.message || "语音没有识别出可发送的内容";
+      voiceRepairCountRef.current += 1;
+      const shouldOfferText = voiceRepairCountRef.current >= 2;
+      const message = shouldOfferText
+        ? "连续两次没有听清，已为您展开键盘输入。"
+        : "刚才没有听清，请靠近麦克风再说一次。";
+      if (shouldOfferText) {
+        setTextInputOpen(true);
+        window.requestAnimationFrame(() => inputRef.current?.focus());
+      }
       setLastError(message);
       setVisualState("alert");
       if (interfaceModeRef.current === "standby") scheduleWakeListen();
@@ -2693,6 +2712,13 @@ function App() {
   const latestJarvisText = useMemo(() => {
     return [...messages].reverse().find((item) => item.role === "jarvis")?.content || "";
   }, [messages]);
+
+  const turnState = useMemo(() => {
+    if (sending || visualState === "thinking") return { label: "贾维斯思考中", tone: "thinking" };
+    if (visualState === "speaking") return { label: "贾维斯正在说", tone: "speaking" };
+    if (voiceActive || visualState === "listening") return { label: "请说，我在听", tone: "listening" };
+    return { label: "轮到您", tone: "ready" };
+  }, [sending, visualState, voiceActive]);
 
   const dockEnergy = amplifyAudioLevel(audioLevel);
   const dockBars = Array.from({ length: 18 }, (_, index) => {
@@ -2792,7 +2818,7 @@ function App() {
 
         {needsFirstRunSetup ? <FirstRunSetup api={api} onComplete={refreshAll} /> : null}
 
-        <HudTerminal messages={messages} sending={sending} lastError={lastError} />
+        <HudTerminal messages={messages} sending={sending} lastError={lastError} turnState={turnState} />
 
         <JarvisWorkbench
           visualState={visualState}
@@ -2839,7 +2865,7 @@ function App() {
         />
 
         <form
-          className="command-dock"
+          className={cls("command-dock", textInputOpen && "text-open")}
           onSubmit={(event) => {
             event.preventDefault();
             sendMessage();
@@ -2857,6 +2883,16 @@ function App() {
             <span className="sr-only">{voiceActive ? "结束语音" : "语音"}</span>
           </button>
           <div className={cls("dock-wave", voiceActive && "active")} style={{ "--signal-energy": dockEnergy.toFixed(3), "--signal-glow": `${(5 + dockEnergy * 11).toFixed(1)}px` }} aria-hidden="true">{dockBars}</div>
+          <button
+            className={cls("secondary", "keyboard-command", textInputOpen && "active")}
+            type="button"
+            aria-label={textInputOpen ? "收起键盘输入" : "展开键盘输入"}
+            title={textInputOpen ? "收起键盘输入" : "键盘输入"}
+            aria-expanded={textInputOpen}
+            onClick={() => setTextInputOpen((current) => !current)}
+          >
+            <Keyboard size={18} />
+          </button>
           <div className="dock-input">
             <Activity size={16} />
             <textarea
@@ -2874,17 +2910,17 @@ function App() {
               rows={1}
             />
           </div>
-          <button className="primary send" type="submit" disabled={sending || !draft.trim()}>
+          <button className="primary send" type="submit" disabled={sending || !draft.trim()} aria-label="发送指令" title="发送指令">
             {sending ? <Loader2 className="spin" size={17} /> : <Send size={17} />}
-            发送
+            <span className="sr-only">发送</span>
           </button>
-          <button className="secondary replay" type="button" disabled={!latestJarvisText || sending} aria-label="重播上一条 Jarvis 回复" onClick={() => speakReply(latestJarvisText)}>
+          <button className="secondary replay" type="button" disabled={!latestJarvisText || sending} aria-label="重播上一条 Jarvis 回复" title="重播上一条回复" onClick={() => speakReply(latestJarvisText)}>
             <Volume2 size={17} />
-            重播
+            <span className="sr-only">重播</span>
           </button>
-          <button className={cls("secondary", "music-command", musicEnabled && "active")} type="button" onClick={() => toggleAmbientMusic()} aria-pressed={musicEnabled} aria-label={musicEnabled ? "关闭背景音乐" : "开启背景音乐"}>
+          <button className={cls("secondary", "music-command", musicEnabled && "active")} type="button" onClick={() => toggleAmbientMusic()} aria-pressed={musicEnabled} aria-label={musicEnabled ? "关闭背景音乐" : "开启背景音乐"} title={musicEnabled ? "关闭背景音乐" : "开启背景音乐"}>
             {musicEnabled ? <Music2 size={17} /> : <VolumeX size={17} />}
-            音乐
+            <span className="sr-only">音乐</span>
           </button>
         </form>
         <div ref={messagesEndRef} className="scroll-anchor" />

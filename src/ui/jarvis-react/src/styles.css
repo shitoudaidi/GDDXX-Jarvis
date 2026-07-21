@@ -1043,6 +1043,122 @@ textarea:focus-visible {
   .dock-wave i { animation: none !important; }
 }
 
+/* Conversation cockpit refinement: voice first, with text available on demand. */
+.app-shell.mode-active .terminal-cap {
+  min-height: 50px;
+}
+
+.terminal-cap .turn-owner {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  color: #9fb0b7;
+  font: 500 10px/1 var(--font-mono);
+}
+
+.terminal-cap .turn-owner.listening { color: #67e0b0; }
+.terminal-cap .turn-owner.thinking { color: #7edcf2; }
+.terminal-cap .turn-owner.speaking { color: #f1cf8c; }
+
+.app-shell.mode-active .terminal-lines {
+  height: calc(100% - 50px);
+}
+
+.app-shell.mode-active .terminal-empty {
+  display: grid;
+  height: 100%;
+  min-height: 180px;
+  place-content: center;
+  justify-items: center;
+  gap: 9px;
+  color: #8fa2aa;
+  text-align: center;
+}
+
+.app-shell.mode-active .terminal-empty svg { color: #55c9e8; opacity: 0.72; }
+.app-shell.mode-active .terminal-empty strong { color: #dce7eb; font-size: 13px; font-weight: 560; }
+.app-shell.mode-active .terminal-empty span { color: #778b94; font-size: 11px; line-height: 1.5; }
+
+.app-shell.mode-active .terminal-cap small,
+.app-shell.mode-active .workbench-header span small,
+.app-shell.mode-active .core-readouts small,
+.engineering-history small {
+  font-size: 10px;
+  color: #7d9098;
+}
+
+.app-shell.mode-active .command-dock {
+  grid-template-columns: 68px 54px 52px 0 0 52px 52px;
+  min-height: 76px;
+  overflow: hidden;
+  transition: grid-template-columns 220ms ease, background-color 220ms ease;
+}
+
+.app-shell.mode-active .command-dock.text-open {
+  grid-template-columns: 68px 54px 52px minmax(220px, 1fr) 52px 52px 52px;
+}
+
+.app-shell.mode-active .keyboard-command,
+.app-shell.mode-active .command-dock .send,
+.app-shell.mode-active .command-dock .replay,
+.app-shell.mode-active .command-dock .music-command {
+  width: 52px;
+  min-width: 52px;
+  padding: 0;
+}
+
+.app-shell.mode-active .keyboard-command.active {
+  border-color: rgba(85, 201, 232, 0.72);
+  color: #9ce9fa;
+}
+
+.app-shell.mode-active .command-dock:not(.text-open) .dock-input,
+.app-shell.mode-active .command-dock:not(.text-open) .send {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-shell.mode-active .dock-input,
+.app-shell.mode-active .command-dock .send {
+  transition: opacity 160ms ease 80ms, visibility 160ms ease 80ms;
+}
+
+.app-shell.mode-active .monitor-stage.engineering-open .command-dock {
+  display: none;
+}
+
+.app-shell.mode-active .monitor-stage.engineering-open .engineering-console {
+  bottom: 0;
+}
+
+.monitor-stage.stage-listening .entity-wave {
+  animation-duration: 4.6s, 580ms;
+}
+
+.monitor-stage.stage-thinking .entity-wave {
+  animation-duration: 2.9s, 720ms;
+}
+
+.monitor-stage.stage-speaking .entity-wave {
+  animation-duration: 5.8s, 410ms;
+}
+
+.monitor-stage.stage-idle .entity-wave {
+  animation-duration: 10.8s, 1.4s;
+}
+
+@media (max-width: 900px) {
+  .app-shell.mode-active .command-dock {
+    grid-template-columns: 60px 44px 48px 0 0 48px;
+  }
+  .app-shell.mode-active .command-dock.text-open {
+    grid-template-columns: 60px 44px 48px minmax(0, 1fr) 48px 48px;
+  }
+  .app-shell.mode-active .music-command { display: none; }
+}
+
 @media (min-width: 901px) and (max-width: 1180px) {
   .jarvis-workbench {
     top: 10%;
@@ -3908,5 +4024,53 @@ aside.acui-result-layer[data-connected="true"] ~ .news-ticker {
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Keep these cockpit rules last so legacy responsive blocks cannot reflow the dock. */
+.app-shell.mode-active .command-dock {
+  grid-template-columns: 68px 54px 52px 0 0 52px 52px;
+  height: 80px;
+  min-height: 80px;
+}
+
+.app-shell.mode-active .command-dock.text-open {
+  grid-template-columns: 68px 54px 52px minmax(220px, 1fr) 52px 52px 52px;
+}
+
+.app-shell.mode-active .hud-terminal,
+.app-shell.mode-active .jarvis-workbench {
+  bottom: 90px;
+}
+
+.app-shell.mode-active .intelligence-rail {
+  bottom: 90px;
+}
+
+.app-shell.mode-active .terminal-empty {
+  display: grid;
+}
+
+.app-shell.mode-active .monitor-stage.engineering-open .engineering-console {
+  bottom: 0;
+}
+
+@media (max-width: 900px) {
+  .app-shell.mode-active .command-dock {
+    grid-template-columns: 60px 44px 48px 0 0 48px;
+  }
+
+  .app-shell.mode-active .command-dock.text-open {
+    grid-template-columns: 60px 44px 48px minmax(0, 1fr) 48px 48px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .app-shell.mode-active .agent-portrait,
+  .monitor-stage.mode-active .agent-portrait {
+    top: 50%;
+    width: 420px;
+    height: 440px;
+    min-height: 0;
   }
 }

@@ -993,6 +993,29 @@ async function runLayoutProbe() {
   mainWindow.setSize(1380, 880, false);
   mainWindow.center();
   await new Promise((resolve) => setTimeout(resolve, 250));
+  const firstRun = await mainWindow.webContents.executeJavaScript(`
+    (async () => {
+      window.__jarvisUiProbe?.showFirstRunFixture?.();
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const form = document.querySelector(".first-run-form");
+      const fields = [...(form?.querySelectorAll("input, select, button") || [])];
+      const rect = form?.getBoundingClientRect();
+      const inside = Boolean(rect && fields.every((field) => {
+        const item = field.getBoundingClientRect();
+        return item.left >= rect.left - 1 && item.right <= rect.right + 1 && item.top >= rect.top - 1 && item.bottom <= rect.bottom + 1;
+      }));
+      const secretToggles = [...(form?.querySelectorAll(".secret-field button") || [])].length === 1;
+      const requiredFields = [...(form?.querySelectorAll("[required]") || [])].length >= 2;
+      return { ok: Boolean(form && inside && secretToggles && requiredFields), inside, secretToggles, requiredFields };
+    })();
+  `, true);
+  const firstRunImage = await mainWindow.webContents.capturePage();
+  const firstRunScreenshot = path.join(outputDir, "jarvis-layout-first-run.png");
+  fs.writeFileSync(firstRunScreenshot, firstRunImage.toPNG());
+  snapshots.push({ id: "first-run", requested: { width: 1380, height: 880 }, screenshot: firstRunScreenshot, ...firstRun });
+  await mainWindow.webContents.executeJavaScript("window.__jarvisUiProbe?.hideFirstRunFixture?.()", true);
+  await new Promise((resolve) => setTimeout(resolve, 120));
+
   const recovery = await mainWindow.webContents.executeJavaScript(`
     (async () => {
       const waitFrame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));

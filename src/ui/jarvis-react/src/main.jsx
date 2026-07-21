@@ -13,6 +13,8 @@ import {
   Cpu,
   Database,
   FileText,
+  Eye,
+  EyeOff,
   KeyRound,
   Keyboard,
   GitCompare,
@@ -903,41 +905,65 @@ function FirstRunSetup({ api, onComplete }) {
   const [voiceProvider, setVoiceProvider] = useState("local");
   const [aliyunApiKey, setAliyunApiKey] = useState("");
   const [saving, setSaving] = useState(false);
+  const [savingStep, setSavingStep] = useState("");
+  const [showModelKey, setShowModelKey] = useState(false);
+  const [showVoiceKey, setShowVoiceKey] = useState(false);
   const [error, setError] = useState("");
+  const submitLockRef = useRef(false);
+  const savingStepRef = useRef("");
+  const modelRef = useRef(null);
+  const apiKeyRef = useRef(null);
+  const baseURLRef = useRef(null);
+  const aliyunKeyRef = useRef(null);
 
   const submit = async (event) => {
     event.preventDefault();
+    if (submitLockRef.current) return;
     setError("");
-    if (!apiKey.trim()) return setError("请输入 DeepSeek API Key");
-    if (!model.trim()) return setError("请输入模型名称");
-    if (voiceProvider === "aliyun" && !aliyunApiKey.trim()) return setError("请输入阿里云 DashScope API Key");
+    if (!model.trim()) { setError("请输入模型名称"); modelRef.current?.focus(); return; }
+    if (!apiKey.trim()) { setError("请输入模型服务 API Key"); apiKeyRef.current?.focus(); return; }
+    if (provider === "custom") {
+      try { new URL(baseURL.trim()); } catch { setError("请输入完整的 Base URL，例如 https://example.com/v1"); baseURLRef.current?.focus(); return; }
+    }
+    if (voiceProvider === "aliyun" && !aliyunApiKey.trim()) { setError("请输入阿里云 DashScope API Key"); aliyunKeyRef.current?.focus(); return; }
+    submitLockRef.current = true;
     setSaving(true);
     try {
-      const activationResponse = await fetch(`${api}/activate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json; charset=utf-8" },
-        body: JSON.stringify({ provider, model: model.trim(), apiKey: apiKey.trim(), baseURL: baseURL.trim() })
-      });
-      const activationData = await readJson(activationResponse);
-      if (!activationResponse.ok || activationData.ok === false) throw new Error(activationData.error || "模型验证失败");
-
+      savingStepRef.current = "正在保存语音配置";
+      setSavingStep(savingStepRef.current);
       const voiceResponse = await fetch(`${api}/settings/voice`, {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
         body: JSON.stringify({
           voiceProvider,
           ...(voiceProvider === "aliyun" ? { aliyunApiKey: aliyunApiKey.trim() } : {})
-        })
+        }),
+        signal: AbortSignal.timeout(15_000)
       });
       const voiceData = await readJson(voiceResponse);
       if (!voiceResponse.ok || voiceData.ok === false) throw new Error(voiceData.error || "语音配置保存失败");
+
+      savingStepRef.current = "正在验证模型连接";
+      setSavingStep(savingStepRef.current);
+      const activationResponse = await fetch(`${api}/activate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ provider, model: model.trim(), apiKey: apiKey.trim(), baseURL: baseURL.trim() }),
+        signal: AbortSignal.timeout(20_000)
+      });
+      const activationData = await readJson(activationResponse);
+      if (!activationResponse.ok || activationData.ok === false) throw new Error(activationData.error || "模型验证失败");
       localStorage.setItem(VOICE_PROVIDER_KEY, voiceProvider);
       window.__JARVIS_VOICE_PROVIDER__ = voiceProvider;
       await onComplete();
     } catch (submitError) {
-      setError(submitError.message || "初始化失败，请检查配置");
+      const timedOut = submitError?.name === "TimeoutError" || submitError?.name === "AbortError";
+      setError(timedOut ? `${savingStepRef.current || "连接"}超时，请检查网络后重试` : (submitError.message || "初始化失败，请检查配置"));
     } finally {
+      submitLockRef.current = false;
       setSaving(false);
+      setSavingStep("");
+      savingStepRef.current = "";
     }
   };
 
@@ -954,23 +980,23 @@ function FirstRunSetup({ api, onComplete }) {
           <strong>模型服务</strong>
           <label className="field">
             <span>服务商</span>
-            <select value={provider} onChange={(event) => setProvider(event.target.value)}>
+            <select value={provider} onChange={(event) => { const next = event.target.value; setProvider(next); setModel(next === "deepseek" ? "deepseek-chat" : ""); setBaseURL(""); }}>
               <option value="deepseek">DeepSeek</option>
               <option value="custom">兼容 OpenAI 的自定义服务</option>
             </select>
           </label>
           <label className="field">
             <span>模型名称</span>
-            <input value={model} onChange={(event) => setModel(event.target.value)} placeholder="deepseek-chat" />
+            <input ref={modelRef} value={model} onChange={(event) => setModel(event.target.value)} placeholder="deepseek-chat" required />
           </label>
           <label className="field">
             <span>API Key</span>
-            <input type="password" autoComplete="off" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="sk-..." />
+            <span className="secret-field"><input ref={apiKeyRef} type={showModelKey ? "text" : "password"} autoComplete="new-password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="sk-..." required /><button type="button" onClick={() => setShowModelKey((value) => !value)} aria-label={showModelKey ? "隐藏模型 API Key" : "显示模型 API Key"} title={showModelKey ? "隐藏密钥" : "显示密钥"}>{showModelKey ? <EyeOff size={15} /> : <Eye size={15} />}</button></span>
           </label>
           {provider === "custom" ? (
             <label className="field">
               <span>Base URL</span>
-              <input type="url" value={baseURL} onChange={(event) => setBaseURL(event.target.value)} placeholder="https://.../v1" />
+              <input ref={baseURLRef} type="url" value={baseURL} onChange={(event) => setBaseURL(event.target.value)} placeholder="https://.../v1" required />
             </label>
           ) : null}
         </div>
@@ -988,12 +1014,13 @@ function FirstRunSetup({ api, onComplete }) {
           {voiceProvider === "aliyun" ? (
             <label className="field">
               <span>DashScope API Key</span>
-              <input type="password" autoComplete="off" value={aliyunApiKey} onChange={(event) => setAliyunApiKey(event.target.value)} placeholder="sk-..." />
+              <span className="secret-field"><input ref={aliyunKeyRef} type={showVoiceKey ? "text" : "password"} autoComplete="new-password" value={aliyunApiKey} onChange={(event) => setAliyunApiKey(event.target.value)} placeholder="sk-..." required /><button type="button" onClick={() => setShowVoiceKey((value) => !value)} aria-label={showVoiceKey ? "隐藏 DashScope API Key" : "显示 DashScope API Key"} title={showVoiceKey ? "隐藏密钥" : "显示密钥"}>{showVoiceKey ? <EyeOff size={15} /> : <Eye size={15} />}</button></span>
             </label>
           ) : null}
         </fieldset>
 
         {error ? <p className="first-run-error" role="alert">{error}</p> : null}
+        {savingStep ? <p className="first-run-progress" role="status" aria-live="polite">{savingStep}</p> : null}
         <button className="primary first-run-submit" type="submit" disabled={saving} aria-busy={saving}>
           {saving ? <Loader2 className="spin" size={17} /> : <ArrowRight size={17} />}
           验证并进入
@@ -2187,6 +2214,8 @@ function App() {
       enterWorkbench: () => enterWorkbench({ listenAfter: false }),
       acceptWakeText: (text) => acceptWakePhrase(text),
       getWakeMetrics: () => ({ ...wakeMetricsRef.current }),
+      showFirstRunFixture: () => { interfaceModeRef.current = "active"; setInterfaceMode("active"); setActivation({ activated: false }); },
+      hideFirstRunFixture: () => setActivation({ activated: true, provider: "deepseek", model: "deepseek-v4-pro" }),
       showConversationFixture: () => setMessages(Array.from({ length: 45 }, (_, index) => ({
         id: `probe-message-${index}`,
         role: index % 2 ? "jarvis" : "user",

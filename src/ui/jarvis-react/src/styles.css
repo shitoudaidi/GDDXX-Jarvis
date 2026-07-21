@@ -461,6 +461,12 @@ textarea:focus-visible {
   font-size: 12px;
 }
 
+.first-run-progress { grid-column: 1 / -1; margin: 0; color: var(--cyan-2); font: 11px var(--font-mono); }
+.secret-field { position: relative; display: flex; align-items: center; }
+.secret-field input { width: 100%; padding-right: 42px; }
+.secret-field button { position: absolute; right: 4px; width: 34px; height: 34px; padding: 0; border: 0; background: transparent; color: var(--ink-3); }
+.secret-field button:hover { color: var(--ink); }
+
 .first-run-submit {
   grid-column: 1 / -1;
   justify-self: end;

@@ -2012,7 +2012,7 @@ export function startAPI(port = 3721, { getStateSnapshot = null, onActivated = n
           models: status.models,
           temperature: config.temperature,
           thinking: config.thinking === true,
-          apiKey: config.apiKey || '',
+          apiKeyConfigured: Boolean(config.apiKey),
         },
         providers: getProviderSummaries(),
         minimax: {

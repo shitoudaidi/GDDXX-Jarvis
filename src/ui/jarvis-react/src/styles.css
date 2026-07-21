@@ -4355,3 +4355,14 @@ aside.acui-result-layer[data-connected="true"] ~ .news-ticker {
     transform-origin: center;
   }
 }
+.secret-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  gap: 6px;
+  align-items: center;
+}
+
+.secret-input .icon-btn {
+  width: 40px;
+  height: 40px;
+}

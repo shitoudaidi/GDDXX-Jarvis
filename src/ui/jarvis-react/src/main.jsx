@@ -1137,6 +1137,7 @@ function HudTerminal({ messages, sending, lastError, turnState, voiceRecovery, o
 
 function SettingsDrawer({ open, onClose, activation, readiness, api, refreshAll }) {
   const [apiKey, setApiKey] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
   const [provider, setProvider] = useState("deepseek");
   const [model, setModel] = useState("deepseek-v4-pro");
   const [baseURL, setBaseURL] = useState("");
@@ -1192,6 +1193,9 @@ function SettingsDrawer({ open, onClose, activation, readiness, api, refreshAll 
     window.addEventListener("keydown", onKeyDown);
     const frame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
     return () => {
+      setApiKey("");
+      setAiHotApiKey("");
+      setShowApiKey(false);
       window.cancelAnimationFrame(frame);
       window.removeEventListener("keydown", onKeyDown);
       previousFocus?.focus?.();
@@ -1199,6 +1203,19 @@ function SettingsDrawer({ open, onClose, activation, readiness, api, refreshAll 
   }, [api, onClose, open]);
 
   const saveModel = async () => {
+    if (!provider.trim() || !model.trim()) {
+      setFeedback({ text: "请填写服务商和模型", type: "error" });
+      return;
+    }
+    if (baseURL.trim()) {
+      try {
+        const parsed = new URL(baseURL.trim());
+        if (!["http:", "https:"].includes(parsed.protocol)) throw new Error();
+      } catch {
+        setFeedback({ text: "Base URL 必须是有效的 HTTP 或 HTTPS 地址", type: "error" });
+        return;
+      }
+    }
     setSaving(true);
     setFeedback({ text: "", type: "" });
     try {
@@ -1212,7 +1229,8 @@ function SettingsDrawer({ open, onClose, activation, readiness, api, refreshAll 
       const response = await fetch(`${api}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(API_TIMEOUT_MS)
       });
       const data = await readJson(response);
       if (!response.ok || data.ok === false) throw new Error(data.error || "保存失败");
@@ -1310,19 +1328,25 @@ function SettingsDrawer({ open, onClose, activation, readiness, api, refreshAll 
             </label>
             <label className="field">
               <span>API Key</span>
-              <input
-                type="password"
-                autoComplete="off"
-                value={apiKey}
-                onChange={(event) => setApiKey(event.target.value)}
-                placeholder={activation?.activated ? "留空则不修改" : "sk-..."}
-              />
+              <span className="secret-input">
+                <input
+                  type={showApiKey ? "text" : "password"}
+                  autoComplete="new-password"
+                  spellCheck="false"
+                  value={apiKey}
+                  onChange={(event) => setApiKey(event.target.value)}
+                  placeholder={activation?.activated ? "已配置，留空则不修改" : "sk-..."}
+                />
+                <button type="button" className="icon-btn" onClick={() => setShowApiKey((value) => !value)} aria-label={showApiKey ? "隐藏 API Key" : "显示 API Key"} title={showApiKey ? "隐藏 API Key" : "显示 API Key"}>
+                  {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </span>
             </label>
             <label className="field">
               <span>Base URL</span>
               <input type="url" value={baseURL} onChange={(event) => setBaseURL(event.target.value)} placeholder="默认可留空" />
             </label>
-            <button className="primary wide" disabled={saving} aria-busy={saving} onClick={saveModel} type="button">
+            <button className="primary wide" disabled={saving || !provider.trim() || !model.trim()} aria-busy={saving} onClick={saveModel} type="button">
               {saving ? <Loader2 className="spin" size={16} /> : <KeyRound size={16} />}
               保存模型配置
             </button>
@@ -1350,7 +1374,8 @@ function SettingsDrawer({ open, onClose, activation, readiness, api, refreshAll 
               <span>API Key（可选）</span>
               <input
                 type="password"
-                autoComplete="off"
+                autoComplete="new-password"
+                spellCheck="false"
                 value={aiHotApiKey}
                 onChange={(event) => setAiHotApiKey(event.target.value)}
                 placeholder={aiHotKeyConfigured ? "已配置，留空则不修改" : "官方接口无需填写"}

@@ -1776,8 +1776,17 @@ function App() {
   const [textInputExpanded, setTextInputExpanded] = useState(false);
   const [voiceRecovery, setVoiceRecovery] = useState(null);
   const [turnElapsedSeconds, setTurnElapsedSeconds] = useState(0);
+  const [appVersion, setAppVersion] = useState("");
   const [grokBuildStatus, setGrokBuildStatus] = useState(null);
   const { cards: acuiCards, connected: acuiConnected, dismissCard: dismissAcuiCard } = useAcuiCards(api);
+
+  useEffect(() => {
+    let disposed = false;
+    window.jarvisDesktop?.getVersion?.().then((version) => {
+      if (!disposed) setAppVersion(String(version || ""));
+    }).catch(() => {});
+    return () => { disposed = true; };
+  }, []);
 
   useEffect(() => {
     const onLevel = (event) => setAudioLevel(Math.min(1, Math.max(0, Number(event.detail?.ttsLevel || event.detail?.level || 0))));
@@ -3290,7 +3299,7 @@ function App() {
       </section>
 
       <footer className="system-footer">
-        <span><Zap size={13} /> 本地桌面 Agent / DeepSeek / 单轮语音</span>
+        <span><Zap size={13} /> GDDXX-Jarvis{appVersion ? ` v${appVersion}` : ""} / 本地桌面 Agent</span>
         <span>{voiceStatusText}</span>
       </footer>
 

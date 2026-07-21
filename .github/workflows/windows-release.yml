@@ -27,6 +27,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify release tag matches package version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: powershell
+        run: |
+          $packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $tagVersion = "${{ github.ref_name }}" -replace '^v', ''
+          if ($tagVersion -ne $packageVersion) { throw "Tag $tagVersion does not match package version $packageVersion" }
+
       - name: Run release checks
         run: npm run check
 
@@ -77,6 +85,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          body_path: RELEASE_NOTES.md
           files: |
             dist/GDDXX-Jarvis-Windows-x64-Setup-*.exe
             dist/GDDXX-Jarvis-Windows-x64-Setup-*.exe.sha256

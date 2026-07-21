@@ -110,11 +110,10 @@ export async function execSpeak(args) {
   if (isDailyLimitReached('tts')) return '错误：今日 TTS 配额已用完'
 
   // 与流式 /tts/stream 入口对齐：先剥 markdown，避免把 * # ` 等符号念成"星号""井号"
-  const text = stripMarkdownForSpeech(rawText)
+  let creds = getTTSCredentials()
+  const text = stripMarkdownForSpeech(rawText, { englishOnly: creds.provider === 'jarvis' })
   if (!text) return '错误：去掉符号后没有可朗读的文字'
   if (text.length > SPEAK_MAX_CHARS) return `错误：文字过长（${text.length} 字），请控制在 ${SPEAK_MAX_CHARS} 字以内`
-
-  let creds = getTTSCredentials()
 
   // 合成前预检：当前服务商凭证没配齐就直接返回结构化引导，不冲到 API 才裸报错。
   const check = validateTTSConfig(creds)
@@ -147,10 +146,10 @@ export async function execSpeak(args) {
 
 // markdown → 朗读用纯文本：TTS 引擎会把 * # ` 等符号直接念出来（"星星"），
 // 所有进入合成的文本都要先过这里——/tts/stream 入口统一调用，是剥离的单一权威
-export function stripMarkdownForSpeech(text) {
-  const spoken = String(text || '').split('[中文翻译]', 1)[0].trim()
-  // The Jarvis Piper model is English-only. Never feed raw CJK text to it.
-  if (/[\u3400-\u9fff]/.test(spoken)) return ''
+export function stripMarkdownForSpeech(text, { englishOnly = false } = {}) {
+  const raw = String(text || '').trim()
+  const spoken = englishOnly ? raw.split('[中文翻译]', 1)[0].trim() : raw
+  if (englishOnly && /[\u3400-\u9fff]/.test(spoken)) return ''
   return spoken
     .replace(/^[ \t]*([-*+]|\d+[.、])\s+/gm, '')
     .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
@@ -169,7 +168,8 @@ export function stripMarkdownForSpeech(text) {
 // 由 index.js 调用，前端收到 tts_reply 事件后调用 /tts/stream 完成实际合成
 export function autoSpeakForVoiceReply(text) {
   if (!text) return
-  const plain = stripMarkdownForSpeech(text)
+  const creds = getTTSCredentials()
+  const plain = stripMarkdownForSpeech(text, { englishOnly: creds.provider === 'jarvis' })
   if (!plain) return
   // 纯表情 / 标点（没有任何可读文字）不合成语音：播放确认现在用单个 emoji 代替，
   // 语音模式下不该把它念出来（\p{L}=字母含汉字，\p{N}=数字）。

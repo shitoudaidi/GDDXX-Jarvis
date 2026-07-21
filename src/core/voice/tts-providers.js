@@ -9,6 +9,8 @@ import { Readable, Transform } from 'stream'
 import { paths } from '../paths.js'
 
 const JARVIS_TTS_TIMEOUT_MS = 45_000
+const CLOUD_TTS_TIMEOUT_MS = 30_000
+const MAX_TTS_CHARS = 800
 let jarvisTtsQueue = Promise.resolve()
 const activeJarvisTtsChildren = new Set()
 
@@ -152,7 +154,28 @@ export function validateTTSConfig(creds = {}) {
 
 // WHATWG ReadableStream (fetch response.body) → Node.js Readable
 function webStreamToNode(webStream) {
+  if (!webStream) throw new Error('TTS provider returned an empty response body')
   return Readable.fromWeb(webStream)
+}
+
+async function fetchTTS(url, options = {}) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), CLOUD_TTS_TIMEOUT_MS)
+  try {
+    return await fetch(url, { ...options, signal: controller.signal })
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error(`TTS provider timed out after ${CLOUD_TTS_TIMEOUT_MS / 1000} seconds`)
+    throw error
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+function audioBufferStream(buffer, contentType = 'audio/mpeg') {
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) throw new Error('TTS provider returned empty audio data')
+  const stream = Readable.from([buffer])
+  stream.contentType = contentType
+  return stream
 }
 
 function escapePowerShellSingleQuoted(value = '') {
@@ -180,12 +203,26 @@ function runPowerShellTTS({ text, outFile, voiceId = 'default' }) {
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
     })
+    activeJarvisTtsChildren.add(child)
     let stderr = ''
+    let settled = false
+    const finish = (error = null) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      activeJarvisTtsChildren.delete(child)
+      if (error) reject(error)
+      else resolve()
+    }
+    const timeout = setTimeout(() => {
+      try { child.kill() } catch {}
+      finish(new Error(`System TTS timed out after ${JARVIS_TTS_TIMEOUT_MS / 1000} seconds`))
+    }, JARVIS_TTS_TIMEOUT_MS)
     child.stderr.on('data', chunk => { stderr += chunk.toString('utf8') })
-    child.on('error', reject)
+    child.on('error', finish)
     child.on('exit', (code) => {
-      if (code === 0) resolve()
-      else reject(new Error(`System TTS failed (${code}): ${stderr.slice(0, 300)}`))
+      if (code === 0 && fs.existsSync(outFile)) finish()
+      else finish(new Error(`System TTS failed (${code}): ${stderr.slice(0, 300)}`))
     })
   })
 }
@@ -416,7 +453,7 @@ async function streamDoubao({
   if (styleText) {
     reqParams.additions = JSON.stringify({ context_texts: [styleText], model_type: 4 })
   }
-  const resp = await fetch('https://openspeech.bytedance.com/api/v3/tts/unidirectional', {
+  const resp = await fetchTTS('https://openspeech.bytedance.com/api/v3/tts/unidirectional', {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -429,7 +466,11 @@ async function streamDoubao({
     throw new Error(`豆包 TTS 失败 (${resp.status}): ${err.slice(0, 300)}`)
   }
   const contentType = resp.headers.get('content-type') || ''
-  if (contentType.includes('audio/')) return webStreamToNode(resp.body)
+  if (contentType.includes('audio/')) {
+    const stream = webStreamToNode(resp.body)
+    stream.contentType = contentType.split(';')[0]
+    return stream
+  }
   return decodeDoubaoStream(resp.body, { speaker, resourceId: resolvedResourceId })
 }
 
@@ -438,7 +479,7 @@ async function streamDoubao({
 // 流式: 否（返回 hex 编码 buffer）
 async function streamMiniMax({ text, voiceId = 'male-qn-qingse', apiKey }) {
   if (!apiKey) throw new Error('MiniMax TTS: 缺少 API Key，请在设置中配置 MiniMax')
-  const resp = await fetch('https://api.minimaxi.com/v1/t2a_v2', {
+  const resp = await fetchTTS('https://api.minimaxi.com/v1/t2a_v2', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -457,8 +498,7 @@ async function streamMiniMax({ text, voiceId = 'male-qn-qingse', apiKey }) {
   }
   const data = await resp.json()
   if (!data?.data?.audio) throw new Error('MiniMax TTS: 响应中无音频数据')
-  const buf = Buffer.from(data.data.audio, 'hex')
-  return Readable.from([buf])
+  return audioBufferStream(Buffer.from(data.data.audio, 'hex'))
 }
 
 // ── OpenAI TTS ─────────────────────────────────────────────────────────────
@@ -466,7 +506,15 @@ async function streamMiniMax({ text, voiceId = 'male-qn-qingse', apiKey }) {
 // 流式: 是（HTTP chunked），首字节延迟约 200-400ms
 async function streamOpenAI({ text, voiceId = 'nova', apiKey, baseURL = 'https://api.openai.com' }) {
   if (!apiKey) throw new Error('OpenAI TTS: 缺少 API Key，请在设置中填写')
-  const resp = await fetch(`${baseURL.replace(/\/$/, '')}/v1/audio/speech`, {
+  let endpoint
+  try {
+    const parsed = new URL(baseURL || 'https://api.openai.com')
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('unsupported protocol')
+    endpoint = `${parsed.toString().replace(/\/$/, '')}/v1/audio/speech`
+  } catch {
+    throw new Error('OpenAI TTS Base URL must be a valid HTTP or HTTPS URL')
+  }
+  const resp = await fetchTTS(endpoint, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -483,7 +531,9 @@ async function streamOpenAI({ text, voiceId = 'nova', apiKey, baseURL = 'https:/
     const err = await resp.text()
     throw new Error(`OpenAI TTS 失败 (${resp.status}): ${err.slice(0, 300)}`)
   }
-  return webStreamToNode(resp.body)
+  const stream = webStreamToNode(resp.body)
+  stream.contentType = 'audio/mpeg'
+  return stream
 }
 
 // ── ElevenLabs TTS ─────────────────────────────────────────────────────────
@@ -491,7 +541,7 @@ async function streamOpenAI({ text, voiceId = 'nova', apiKey, baseURL = 'https:/
 // 流式: 是（HTTP chunked），首字节延迟约 100-300ms
 async function streamElevenLabs({ text, voiceId = 'pNInz6obpgDQGcFmaJgB', apiKey }) {
   if (!apiKey) throw new Error('ElevenLabs TTS: 缺少 API Key，请在设置中填写')
-  const resp = await fetch(
+  const resp = await fetchTTS(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`,
     {
       method: 'POST',
@@ -510,7 +560,9 @@ async function streamElevenLabs({ text, voiceId = 'pNInz6obpgDQGcFmaJgB', apiKey
     const err = await resp.text()
     throw new Error(`ElevenLabs TTS 失败 (${resp.status}): ${err.slice(0, 300)}`)
   }
-  return webStreamToNode(resp.body)
+  const stream = webStreamToNode(resp.body)
+  stream.contentType = 'audio/mpeg'
+  return stream
 }
 
 // ── 火山引擎 TTS ───────────────────────────────────────────────────────────
@@ -519,7 +571,7 @@ async function streamElevenLabs({ text, voiceId = 'pNInz6obpgDQGcFmaJgB', apiKey
 // 返回: JSON { data: "<base64 mp3>" }
 async function streamVolcano({ text, voiceId = 'BV001_streaming', appId, token }) {
   if (!appId || !token) throw new Error('火山引擎 TTS: 缺少 AppId 或 Token，请在设置中填写')
-  const resp = await fetch('https://openspeech.bytedance.com/api/v1/tts', {
+  const resp = await fetchTTS('https://openspeech.bytedance.com/api/v1/tts', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${appId};${token}`,
@@ -551,13 +603,15 @@ async function streamVolcano({ text, voiceId = 'BV001_streaming', appId, token }
   }
   const data = await resp.json()
   if (!data?.data) throw new Error('火山引擎 TTS: 响应中无音频数据')
-  const buf = Buffer.from(data.data, 'base64')
-  return Readable.from([buf])
+  return audioBufferStream(Buffer.from(data.data, 'base64'))
 }
 
 // ── 通用入口 ────────────────────────────────────────────────────────────────
 export async function streamTTS({ text, provider, voiceId, keys = {} }) {
-  if (!text?.trim()) throw new Error('TTS: 文本为空')
+  const normalizedText = String(text || '').trim()
+  if (!normalizedText) throw new Error('TTS text is empty')
+  if (normalizedText.length > MAX_TTS_CHARS) throw new Error(`TTS text exceeds ${MAX_TTS_CHARS} characters`)
+  text = normalizedText
   switch (provider) {
     case 'jarvis':
       return streamJarvisTTS({ text })

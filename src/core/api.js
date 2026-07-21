@@ -2489,9 +2489,9 @@ export function startAPI(port = 3721, { getStateSnapshot = null, onActivated = n
         try {
           const body = JSON.parse(Buffer.concat(chunks).toString('utf-8') || '{}')
           // 统一在合成入口剥 markdown：模型回复带 **加粗** 等记号时，TTS 会把星号念成"星星"
-          const text = stripMarkdownForSpeech(body.text)
-          if (!text) { jsonResponse(res, 400, { ok: false, error: 'Missing text parameter' }); return }
           let creds = getTTSCredentials()
+          const text = stripMarkdownForSpeech(body.text, { englishOnly: creds.provider === 'jarvis' })
+          if (!text) { jsonResponse(res, 400, { ok: false, error: 'No speakable text for the selected voice' }); return }
           // 合成前预检：服务商未选/凭证未配齐时给出可执行引导，而非冲到 streamTTS 才裸抛
           const check = validateTTSConfig(creds)
           if (!check.ok) { jsonResponse(res, 400, { ok: false, error: check.guide, needsConfig: true, provider: check.provider }); return }

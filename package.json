@@ -66,13 +66,14 @@
     "probe:release-integrity": "node scripts/probe-release-integrity.cjs",
     "probe:packaged-runtime": "node scripts/probe-packaged-runtime.cjs",
     "probe:packaged-experience": "node scripts/probe-packaged-experience-contract.cjs",
+    "probe:installer": "node scripts/probe-installer-artifact.cjs",
     "probe:tts-repeat": "node scripts/probe-tts-repeat.cjs",
     "rebuild:native": "node ./node_modules/electron-builder/cli.js install-app-deps",
     "rebuild:web": "npm rebuild better-sqlite3",
     "postinstall": "node ./node_modules/electron-builder/cli.js install-app-deps",
     "verify:voice-bundle": "node scripts/probe-local-voice-bundle.cjs",
     "pack": "npm run check && npm run verify:voice-bundle && node scripts/build.cjs --dir && node scripts/probe-packaged-runtime.cjs",
-    "dist": "npm run check && npm run verify:voice-bundle && node scripts/build.cjs --win nsis"
+    "dist": "npm run check && npm run verify:voice-bundle && node scripts/build.cjs --win nsis && npm run probe:installer"
   },
   "dependencies": {
     "better-sqlite3": "^12.8.0",

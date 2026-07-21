@@ -69,6 +69,8 @@ const ACUI_CARD_LIMIT = 4;
 const ACUI_STRING_LIMIT = 800;
 const ACUI_RECONNECT_MAX_MS = 8_000;
 const DRAFT_STORAGE_KEY = "gddxx-jarvis-draft";
+const MAX_DRAFT_CHARS = 4_000;
+const DRAFT_WARNING_CHARS = 3_600;
 
 function isAsrEchoNoise(value) {
   const normalized = normalizeEchoText(value);
@@ -1786,6 +1788,7 @@ function App() {
   const postReplyListenMetricsRef = useRef({ scheduledAt: 0, startedAt: 0 });
   const voiceRepairCountRef = useRef(0);
   const turnStartedAtRef = useRef(0);
+  const composingRef = useRef(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -1796,6 +1799,16 @@ function App() {
     }, 180);
     return () => window.clearTimeout(timer);
   }, [draft]);
+
+  useEffect(() => {
+    if (!draft || !inputRef.current) return;
+    if (!textInputOpen) setTextInputOpen(true);
+    const field = inputRef.current;
+    field.style.height = "auto";
+    const nextHeight = Math.min(76, field.scrollHeight);
+    field.style.height = `${nextHeight}px`;
+    setTextInputExpanded(nextHeight > 54);
+  }, [draft, textInputOpen]);
 
   const openTextInput = useCallback(() => {
     setTextInputOpen(true);
@@ -3173,8 +3186,10 @@ function App() {
             <textarea
               ref={inputRef}
               aria-label="给 Jarvis 的指令"
-              aria-describedby="turn-status"
+              aria-describedby="turn-status composer-hint composer-count"
+              aria-invalid={draft.length >= MAX_DRAFT_CHARS ? "true" : undefined}
               value={draft}
+              maxLength={MAX_DRAFT_CHARS}
               onChange={(event) => {
                 setDraft(event.target.value);
                 event.currentTarget.style.height = "auto";
@@ -3183,14 +3198,20 @@ function App() {
                 setTextInputExpanded(nextHeight > 54);
               }}
               onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && !composingRef.current) {
                   event.preventDefault();
                   sendMessage();
                 }
               }}
+              onCompositionStart={() => { composingRef.current = true; }}
+              onCompositionEnd={() => { composingRef.current = false; }}
               placeholder="输入要 Jarvis 做的事"
               rows={1}
             />
+            <span id="composer-hint" className="sr-only">按 Enter 发送，Shift 加 Enter 换行</span>
+            <span id="composer-count" className={cls("composer-count", draft.length >= DRAFT_WARNING_CHARS && "visible")} aria-live="polite">
+              {draft.length}/{MAX_DRAFT_CHARS}
+            </span>
           </div>
           <button className={cls("primary send", sending && "cancel")} type={sending ? "button" : "submit"} disabled={!sending && !draft.trim()} aria-label={sending ? "停止生成" : "发送指令"} title={sending ? "停止生成 (Esc)" : "发送指令"} onClick={sending ? () => cancelActiveTurn() : undefined}>
             {sending ? <Square size={16} fill="currentColor" /> : <Send size={17} />}

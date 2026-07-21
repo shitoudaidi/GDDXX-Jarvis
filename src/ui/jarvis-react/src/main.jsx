@@ -40,6 +40,7 @@ import {
   Zap
 } from "lucide-react";
 import { initVoicePanel } from "../../voice/voice-panel.js";
+import { isWakePhrase } from "../../voice/wake-phrase.js";
 import { attachJarvisAudioGraph, resumeJarvisAudioContext } from "../../audio/tts-fx.js";
 import { applyOutputSink, initAudioOutputRouting } from "../../audio/audio-output.js";
 import { playWakeTransitionSfx } from "../../audio/wake-sfx.js";
@@ -217,26 +218,6 @@ function echoTextOverlaps(candidate, source) {
   if (left === right) return true;
   if (Math.min(left.length, right.length) < 4) return false;
   return left.includes(right) || right.includes(left);
-}
-
-function isWakePhrase(value, { loose = false } = {}) {
-  const compact = normalizeEchoText(value);
-  if (!compact) return false;
-  const hasAny = (items) => items.some((item) => compact.includes(normalizeEchoText(item)));
-  const jarvisTokens = [
-    "jarvis", "javis", "jarviss", "jervis", "travis",
-    "贾维斯", "加维斯", "扎维斯", "嘉维斯", "假维斯",
-    "贾维斯", "贾维思", "贾威斯", "贾伟思", "加维斯", "嘉维斯", "佳维斯", "家维斯", "扎维斯",
-    "杰维斯", "杰维思", "贾维丝", "贾维司", "佳伟斯", "家伟斯", "扎维丝", "扎维思", "扎维司", "扎维", "炸维斯", "查维斯",
-    "贾维", "加维", "嘉维", "小贾", "海贾"
-  ];
-  const wakePrefixes = ["hi", "hey", "hello", "嗨", "嘿", "哈", "你好", "您好"];
-  const commonMishears = ["john", "jon", "讲", "江", "将"];
-  if (hasAny(jarvisTokens)) return true;
-  if (hasAny(wakePrefixes) && hasAny(commonMishears)) return true;
-  if (loose && /(?:嗨|嘿|哈|你?好|喂|哎).{0,3}(?:维斯|威斯|维思|薇斯)/u.test(compact)) return true;
-  if (loose && /(?:贾|加|扎|嘉|假|家).{0,1}(?:维斯|威斯|维思|薇斯)/u.test(compact)) return true;
-  return loose && /(?:jarv|jerv|trav|贾维|扎维|杰维|加维|嘉维)/i.test(compact);
 }
 
 function isVoiceChannel(channel = "") {

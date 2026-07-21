@@ -882,6 +882,8 @@ export function createVoiceCore({ canvas, transcript, getChatInput, getSendMessa
       });
       return attachMicStream(stream);
     } catch (e) {
+      diagLastError = `${e?.name || 'MicrophoneError'}${e?.message ? `: ${e.message}` : ''}`;
+      diag('mic-start-error', diagLastError);
       const shouldFallbackToDefault = getSelectedMicDeviceId()
         && e?.name !== 'NotAllowedError'
         && e?.name !== 'SecurityError';
@@ -892,7 +894,10 @@ export function createVoiceCore({ canvas, transcript, getChatInput, getSendMessa
             audio: makeAudioConstraints(''),
           });
           return attachMicStream(fallbackStream);
-        } catch {}
+        } catch (fallbackError) {
+          diagLastError = `${fallbackError?.name || 'MicrophoneError'}${fallbackError?.message ? `: ${fallbackError.message}` : ''}`;
+          diag('mic-fallback-error', diagLastError);
+        }
       }
       // 权限拒绝时球体变红，不在 transcript 显示文字
       setStatus('error');

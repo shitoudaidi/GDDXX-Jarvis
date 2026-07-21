@@ -4074,3 +4074,71 @@ aside.acui-result-layer[data-connected="true"] ~ .news-ticker {
     min-height: 0;
   }
 }
+
+.app-shell.mode-active .terminal-line.voice-recovery {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid rgba(241, 207, 140, 0.3);
+  border-radius: 4px;
+  background: rgba(41, 31, 18, 0.28);
+}
+
+.voice-recovery > small {
+  color: #899ba3;
+  font: 10px/1.5 var(--font-mono);
+}
+
+.recovery-dismiss {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #81939b;
+  cursor: pointer;
+}
+
+.recovery-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.recovery-actions button {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid rgba(85, 201, 232, 0.32);
+  border-radius: 3px;
+  background: rgba(85, 201, 232, 0.06);
+  color: #b9dfe8;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.recovery-actions button:hover,
+.recovery-dismiss:hover {
+  color: #f2fbfd;
+  border-color: rgba(85, 201, 232, 0.62);
+}
+
+.app-shell.mode-active .command-dock.multiline {
+  height: 108px;
+}
+
+.app-shell.mode-active .command-dock.multiline .dock-input,
+.app-shell.mode-active .command-dock.multiline .dock-input textarea {
+  height: auto;
+  min-height: 54px;
+  max-height: 76px;
+}
+
+.app-shell.mode-active .monitor-stage:has(.command-dock.multiline) .hud-terminal,
+.app-shell.mode-active .monitor-stage:has(.command-dock.multiline) .jarvis-workbench,
+.app-shell.mode-active .monitor-stage:has(.command-dock.multiline) .intelligence-rail {
+  bottom: 118px;
+}

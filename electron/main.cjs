@@ -972,6 +972,80 @@ async function runLayoutProbe() {
 
   mainWindow.setSize(1380, 880, false);
   mainWindow.center();
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  const recovery = await mainWindow.webContents.executeJavaScript(`
+    (async () => {
+      const waitFrame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const dock = document.querySelector(".command-dock");
+      const input = dock?.querySelector("textarea");
+      window.jarvisVoice?.stop?.();
+      document.querySelector(".voice-recovery .recovery-dismiss")?.click();
+      await waitFrame();
+
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "/", bubbles: true, cancelable: true }));
+      await waitFrame();
+      const slashOpened = dock?.classList.contains("text-open");
+
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+      await waitFrame();
+      const escapeClosed = !dock?.classList.contains("text-open");
+
+      window.dispatchEvent(new CustomEvent("jarvis:voice-error", { detail: {
+        message: "ASR 已收到音频但没有返回文字。",
+        diagnostics: { chunks: 42, bytes: 4096, peakVol: 0.031, micLabel: "Probe microphone", lastCloudEvent: "final-empty" }
+      }}));
+      await waitFrame();
+      const retryPanel = document.querySelector(".voice-recovery");
+      const retryAvailable = [...(retryPanel?.querySelectorAll(".recovery-actions button") || [])].some((item) => item.textContent.includes("重试"));
+      const diagnosticVisible = retryPanel?.textContent.includes("Probe microphone") && retryPanel?.textContent.includes("0.031");
+      retryPanel?.querySelector(".recovery-dismiss")?.click();
+      await waitFrame();
+      const dismissCleared = !document.querySelector(".voice-recovery");
+
+      window.dispatchEvent(new CustomEvent("jarvis:voice-error", { detail: {
+        message: "没有采集到麦克风音频。请检查系统输入设备或麦克风权限。",
+        diagnostics: { chunks: 0, bytes: 0, peakVol: 0, micLabel: "" }
+      }}));
+      await waitFrame();
+      const devicePanel = document.querySelector(".voice-recovery");
+      const deviceOpenedText = dock?.classList.contains("text-open");
+      const deviceSkipsRetry = ![...(devicePanel?.querySelectorAll(".recovery-actions button") || [])].some((item) => item.textContent.includes("重试"));
+      const assertiveAlert = devicePanel?.getAttribute("role") === "alert" && devicePanel?.getAttribute("aria-live") === "assertive";
+
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+      valueSetter?.call(input, "第一行\\n第二行\\n第三行");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      await waitFrame();
+      const multilineExpanded = dock?.classList.contains("multiline") && dock.getBoundingClientRect().height >= 100;
+      const dockRect = dock?.getBoundingClientRect();
+      const childrenInside = dockRect ? [...dock.children].every((child) => {
+        const rect = child.getBoundingClientRect();
+        return rect.left >= dockRect.left - 1 && rect.right <= dockRect.right + 1 && rect.top >= dockRect.top - 1 && rect.bottom <= dockRect.bottom + 1;
+      }) : false;
+
+      return {
+        ok: Boolean(slashOpened && escapeClosed && retryAvailable && diagnosticVisible && dismissCleared && deviceOpenedText && deviceSkipsRetry && assertiveAlert && multilineExpanded && childrenInside),
+        slashOpened, escapeClosed, retryAvailable, diagnosticVisible, dismissCleared,
+        deviceOpenedText, deviceSkipsRetry, assertiveAlert, multilineExpanded, childrenInside,
+      };
+    })();
+  `, true);
+  await new Promise((resolve) => setTimeout(resolve, 180));
+  const recoveryImage = await mainWindow.webContents.capturePage();
+  const recoveryScreenshot = path.join(outputDir, "jarvis-layout-voice-recovery.png");
+  fs.writeFileSync(recoveryScreenshot, recoveryImage.toPNG());
+  snapshots.push({ id: "voice-recovery", requested: { width: 1380, height: 880 }, screenshot: recoveryScreenshot, ...recovery });
+
+  await mainWindow.webContents.executeJavaScript(`
+    (() => {
+      document.querySelector(".voice-recovery .recovery-dismiss")?.click();
+      const input = document.querySelector(".command-dock textarea");
+      if (input) { input.value = ""; input.dispatchEvent(new Event("input", { bubbles: true })); }
+    })();
+  `, true);
+
+  mainWindow.setSize(1380, 880, false);
+  mainWindow.center();
   await new Promise((resolve) => setTimeout(resolve, 350));
   const engineering = await mainWindow.webContents.executeJavaScript(`
     (async () => {

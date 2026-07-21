@@ -1019,7 +1019,7 @@ function FirstRunSetup({ api, onComplete }) {
   );
 }
 
-function HudTerminal({ messages, sending, lastError, turnState }) {
+function HudTerminal({ messages, sending, lastError, turnState, voiceRecovery, onRetryVoice, onUseKeyboard, onDismissError }) {
   const visibleMessages = messages.slice(-40);
   const terminalRef = useRef(null);
 
@@ -1060,9 +1060,17 @@ function HudTerminal({ messages, sending, lastError, turnState }) {
           </div>
         ))}
         {lastError ? (
-          <div className="terminal-line system">
-            <span>ERROR</span>
+          <div className="terminal-line system voice-recovery" role="alert" aria-live="assertive">
+            <div className="terminal-line-head">
+              <span>{voiceRecovery?.kind === "device" ? "MICROPHONE" : "VOICE RECOVERY"}</span>
+              <button type="button" className="recovery-dismiss" onClick={onDismissError} aria-label="关闭语音错误" title="关闭"><X size={13} /></button>
+            </div>
             <p>{lastError}</p>
+            {voiceRecovery?.detail ? <small>{voiceRecovery.detail}</small> : null}
+            <div className="recovery-actions">
+              {voiceRecovery?.kind !== "device" ? <button type="button" onClick={onRetryVoice}><Mic size={13} />重试</button> : null}
+              <button type="button" onClick={onUseKeyboard}><Keyboard size={13} />键盘输入</button>
+            </div>
           </div>
         ) : null}
       </div>
@@ -1641,6 +1649,8 @@ function App() {
   const [musicEnabled, setMusicEnabled] = useState(() => isAmbientMusicEnabled());
   const [engineeringOpen, setEngineeringOpen] = useState(false);
   const [textInputOpen, setTextInputOpen] = useState(false);
+  const [textInputExpanded, setTextInputExpanded] = useState(false);
+  const [voiceRecovery, setVoiceRecovery] = useState(null);
   const [grokBuildStatus, setGrokBuildStatus] = useState(null);
   const { cards: acuiCards, connected: acuiConnected, dismissCard: dismissAcuiCard } = useAcuiCards(api);
 
@@ -1688,6 +1698,24 @@ function App() {
   const visibleStreamRef = useRef(false);
   const postReplyListenMetricsRef = useRef({ scheduledAt: 0, startedAt: 0 });
   const voiceRepairCountRef = useRef(0);
+
+  const openTextInput = useCallback(() => {
+    setTextInputOpen(true);
+    window.requestAnimationFrame(() => inputRef.current?.focus());
+  }, []);
+
+  const retryVoice = useCallback(() => {
+    setLastError("");
+    setVoiceRecovery(null);
+    const button = document.getElementById("voice-toggle");
+    if (!window.jarvisVoice?.isActive?.()) button?.click();
+  }, []);
+
+  const dismissVoiceError = useCallback(() => {
+    setLastError("");
+    setVoiceRecovery(null);
+    setVisualState((current) => current === "alert" ? "idle" : current);
+  }, []);
 
   useEffect(() => {
     interfaceModeRef.current = interfaceMode;
@@ -2290,6 +2318,8 @@ function App() {
     const text = typeof payload === "object" && payload ? payload.text : draft;
     const content = String(text || "").trim();
     if (!content || sending) return;
+    voiceRepairCountRef.current = 0;
+    setVoiceRecovery(null);
     window.clearTimeout(postReplyListenRef.current);
     postReplyListenRef.current = null;
 
@@ -2374,6 +2404,7 @@ function App() {
     visibleStreamRef.current = false;
     lastVoiceTurnRef.current = fromVoice;
     setDraft("");
+    setTextInputExpanded(false);
     setSending(true);
     setLastError("");
     setVisualState(fromVoice ? "listening" : "thinking");
@@ -2634,7 +2665,10 @@ function App() {
   useEffect(() => {
     const onVoiceTranscript = (event) => {
       const text = String(event.detail?.text || event.detail?.accumulated || "").trim();
-      if (text) voiceRepairCountRef.current = 0;
+      if (text) {
+        voiceRepairCountRef.current = 0;
+        setVoiceRecovery(null);
+      }
       if (interfaceModeRef.current !== "standby" || wakeAcceptedRef.current) return;
       if (text) {
         try {
@@ -2654,14 +2688,25 @@ function App() {
 
   useEffect(() => {
     const onVoiceError = (event) => {
+      const diagnostics = event.detail?.diagnostics || {};
+      const captureFailed = !diagnostics.chunks || !diagnostics.bytes;
+      const permissionFailed = /permission|notallowed|denied|权限/i.test(String(diagnostics.lastError || event.detail?.message || ""));
+      const deviceFailure = captureFailed || permissionFailed;
       voiceRepairCountRef.current += 1;
-      const shouldOfferText = voiceRepairCountRef.current >= 2;
-      const message = shouldOfferText
-        ? "连续两次没有听清，已为您展开键盘输入。"
-        : "刚才没有听清，请靠近麦克风再说一次。";
+      const shouldOfferText = deviceFailure || voiceRepairCountRef.current >= 2;
+      const message = deviceFailure
+        ? (event.detail?.message || "没有采集到麦克风音频，已展开键盘输入。")
+        : shouldOfferText
+          ? "连续两次没有听清，已为您展开键盘输入。"
+          : "刚才没有听清，请靠近麦克风再说一次。";
+      const diagnosticDetail = [
+        diagnostics.micLabel ? `设备：${diagnostics.micLabel}` : "",
+        Number.isFinite(diagnostics.peakVol) ? `峰值：${Number(diagnostics.peakVol).toFixed(3)}` : "",
+        diagnostics.lastCloudEvent ? `ASR：${diagnostics.lastCloudEvent}` : ""
+      ].filter(Boolean).join(" · ");
+      setVoiceRecovery({ kind: deviceFailure ? "device" : "retry", detail: diagnosticDetail, attempts: voiceRepairCountRef.current });
       if (shouldOfferText) {
-        setTextInputOpen(true);
-        window.requestAnimationFrame(() => inputRef.current?.focus());
+        openTextInput();
       }
       setLastError(message);
       setVisualState("alert");
@@ -2669,7 +2714,7 @@ function App() {
     };
     window.addEventListener("jarvis:voice-error", onVoiceError);
     return () => window.removeEventListener("jarvis:voice-error", onVoiceError);
-  }, [scheduleWakeListen]);
+  }, [openTextInput, scheduleWakeListen]);
 
   useEffect(() => {
     window.stopTTS = () => { stopTTSPlayback(); resumeMicAfterTTS(); };
@@ -2686,9 +2731,20 @@ function App() {
 
   useEffect(() => {
     const onKeyDown = (event) => {
-      if (event.code !== "Space") return;
       const active = document.activeElement;
       const typing = active && ["INPUT", "TEXTAREA", "SELECT"].includes(active.tagName);
+      if (event.key === "/" && !typing && interfaceModeRef.current === "active") {
+        event.preventDefault();
+        openTextInput();
+        return;
+      }
+      if (event.key === "Escape" && textInputOpen && !draft.trim()) {
+        event.preventDefault();
+        setTextInputOpen(false);
+        inputRef.current?.blur();
+        return;
+      }
+      if (event.code !== "Space") return;
       if (typing || event.repeat) return;
       event.preventDefault();
       window.jarvisVoice?.pttStart?.();
@@ -2707,7 +2763,7 @@ function App() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, []);
+  }, [draft, openTextInput, textInputOpen]);
 
   const latestJarvisText = useMemo(() => {
     return [...messages].reverse().find((item) => item.role === "jarvis")?.content || "";
@@ -2717,7 +2773,7 @@ function App() {
     if (sending || visualState === "thinking") return { label: "贾维斯思考中", tone: "thinking" };
     if (visualState === "speaking") return { label: "贾维斯正在说", tone: "speaking" };
     if (voiceActive || visualState === "listening") return { label: "请说，我在听", tone: "listening" };
-    return { label: "轮到您", tone: "ready" };
+    return { label: "语音待命", tone: "ready" };
   }, [sending, visualState, voiceActive]);
 
   const dockEnergy = amplifyAudioLevel(audioLevel);
@@ -2818,7 +2874,16 @@ function App() {
 
         {needsFirstRunSetup ? <FirstRunSetup api={api} onComplete={refreshAll} /> : null}
 
-        <HudTerminal messages={messages} sending={sending} lastError={lastError} turnState={turnState} />
+        <HudTerminal
+          messages={messages}
+          sending={sending}
+          lastError={lastError}
+          turnState={turnState}
+          voiceRecovery={voiceRecovery}
+          onRetryVoice={retryVoice}
+          onUseKeyboard={openTextInput}
+          onDismissError={dismissVoiceError}
+        />
 
         <JarvisWorkbench
           visualState={visualState}
@@ -2865,7 +2930,7 @@ function App() {
         />
 
         <form
-          className={cls("command-dock", textInputOpen && "text-open")}
+          className={cls("command-dock", textInputOpen && "text-open", textInputExpanded && "multiline")}
           onSubmit={(event) => {
             event.preventDefault();
             sendMessage();
@@ -2899,7 +2964,13 @@ function App() {
               ref={inputRef}
               aria-label="给 Jarvis 的指令"
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
+              onChange={(event) => {
+                setDraft(event.target.value);
+                event.currentTarget.style.height = "auto";
+                const nextHeight = Math.min(76, event.currentTarget.scrollHeight);
+                event.currentTarget.style.height = `${nextHeight}px`;
+                setTextInputExpanded(nextHeight > 54);
+              }}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();

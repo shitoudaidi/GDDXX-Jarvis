@@ -272,11 +272,34 @@ function isPathInside(parentDir, candidatePath) {
   return relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
+function redactPublicError(value) {
+  return String(value || 'unknown error')
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, ' ')
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [redacted]')
+    .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, 'sk-[redacted]')
+    .replace(/([?&](?:api[_-]?key|access[_-]?token|token|key)=)[^&#\s]+/gi, '$1[redacted]')
+    .replace(/((?:Authorization|X-Api-Key|X-Api-Access-Key)\s*[:=]\s*)[^,;\s]+/gi, '$1[redacted]')
+    .replace(/("(?:apiKey|api_key|accessKey|access_token|token|secret|password)"\s*:\s*")[^"]+("?)/gi, '$1[redacted]$2')
+    .replace(/(https?:\/\/)[^/@\s:]+:[^/@\s]+@/gi, '$1[redacted]@')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 1000)
+}
+
+function sanitizePublicErrors(value, key = '') {
+  if (Array.isArray(value)) return value.map(item => sanitizePublicErrors(item, key))
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([childKey, child]) => [childKey, sanitizePublicErrors(child, childKey)]))
+  }
+  if (typeof value === 'string' && /^(error|warning|reason)$/i.test(key)) return redactPublicError(value)
+  return value
+}
+
 function jsonResponse(res, status, body) {
   setBaseResponseHeaders(res)
   res.setHeader('Cache-Control', 'no-store')
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' })
-  res.end(JSON.stringify(body))
+  res.end(JSON.stringify(sanitizePublicErrors(body)))
 }
 
 const TOOL_CATALOG_GROUPS = [

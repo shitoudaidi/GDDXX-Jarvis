@@ -68,6 +68,7 @@ const SPEECH_CACHE_LIMIT = 6;
 const ACUI_CARD_LIMIT = 4;
 const ACUI_STRING_LIMIT = 800;
 const ACUI_RECONNECT_MAX_MS = 8_000;
+const DRAFT_STORAGE_KEY = "gddxx-jarvis-draft";
 
 function isAsrEchoNoise(value) {
   const normalized = normalizeEchoText(value);
@@ -1714,7 +1715,9 @@ function App() {
     typeof window !== "undefined" && window.jarvisDesktop?.getBackendPort ? "" : DEFAULT_API
   ));
   const [messages, setMessages] = useState([]);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(() => {
+    try { return localStorage.getItem(DRAFT_STORAGE_KEY) || ""; } catch { return ""; }
+  });
   const [connection, setConnection] = useState({ state: "connecting", detail: "连接核心服务" });
   const [activation, setActivation] = useState(null);
   const [readiness, setReadiness] = useState(null);
@@ -1784,6 +1787,16 @@ function App() {
   const voiceRepairCountRef = useRef(0);
   const turnStartedAtRef = useRef(0);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        if (draft) localStorage.setItem(DRAFT_STORAGE_KEY, draft);
+        else localStorage.removeItem(DRAFT_STORAGE_KEY);
+      } catch {}
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [draft]);
+
   const openTextInput = useCallback(() => {
     setTextInputOpen(true);
     window.requestAnimationFrame(() => inputRef.current?.focus());
@@ -1820,7 +1833,7 @@ function App() {
     else signal?.addEventListener?.("abort", relayAbort, { once: true });
     const timeout = window.setTimeout(() => controller.abort(new DOMException("Request timed out", "TimeoutError")), timeoutMs);
     try {
-      const response = await fetch(`${api}${path}`, {
+      const request = () => fetch(`${api}${path}`, {
         ...fetchOptions,
         signal: controller.signal,
         headers: {
@@ -1828,11 +1841,28 @@ function App() {
           ...(fetchOptions.headers || {})
         }
       });
+      let response;
+      try {
+        response = await request();
+      } catch (error) {
+        const retryable = !fetchOptions.method || String(fetchOptions.method).toUpperCase() === "GET";
+        if (!retryable || controller.signal.aborted) throw error;
+        await new Promise((resolve) => window.setTimeout(resolve, 240));
+        response = await request();
+      }
       const data = await readJson(response);
       if (!response.ok || data.ok === false) {
         throw new Error(data.error || response.statusText || "请求失败");
       }
+      setConnection({ state: "online", detail: "核心在线" });
       return data;
+    } catch (error) {
+      if (error?.name === "TimeoutError" || controller.signal.reason?.name === "TimeoutError") {
+        setConnection({ state: "degraded", detail: "核心响应超时" });
+        throw new Error("核心服务响应超时，请稍后重试");
+      }
+      if (error?.name !== "AbortError") setConnection({ state: "degraded", detail: "核心连接中断" });
+      throw error;
     } finally {
       window.clearTimeout(timeout);
       signal?.removeEventListener?.("abort", relayAbort);
@@ -2647,14 +2677,37 @@ function App() {
     const source = new EventSource(`${api}/events`);
     eventSourceRef.current = source;
 
-    source.onopen = () => setConnection({ state: "online", detail: "事件流在线" });
+    source.onopen = () => {
+      setConnection({ state: "online", detail: "事件流在线" });
+      refreshAll().catch(() => {});
+    };
     source.onerror = () => setConnection({ state: "degraded", detail: "事件流重连中" });
     source.onmessage = (event) => {
       let payload = null;
       try { payload = JSON.parse(event.data || "{}"); } catch { return; }
       handleCoreEvent(payload);
     };
-  }, [api, handleCoreEvent]);
+  }, [api, handleCoreEvent, refreshAll]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setConnection({ state: "connecting", detail: "网络已恢复，正在同步" });
+      connectEvents();
+      refreshAll().catch(() => {});
+    };
+    const handleOffline = () => setConnection({ state: "offline", detail: "设备当前离线" });
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") refreshAll().catch(() => {});
+    };
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [connectEvents, refreshAll]);
 
   useEffect(() => {
     let disposed = false;

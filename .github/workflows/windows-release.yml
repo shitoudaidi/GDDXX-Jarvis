@@ -56,9 +56,27 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Create SHA-256 checksum
+        shell: powershell
+        run: |
+          $installer = Get-ChildItem dist/GDDXX-Jarvis-Windows-x64-Setup-*.exe | Select-Object -First 1
+          if (-not $installer -or $installer.Length -lt 1MB) { throw "Installer is missing or unexpectedly small" }
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($installer.Name)" | Set-Content -Encoding ascii "dist/$($installer.Name).sha256"
+
+      - name: Upload checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: GDDXX-Jarvis-Windows-x64-SHA256
+          path: dist/GDDXX-Jarvis-Windows-x64-Setup-*.exe.sha256
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Publish GitHub release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: dist/GDDXX-Jarvis-Windows-x64-Setup-*.exe
+          files: |
+            dist/GDDXX-Jarvis-Windows-x64-Setup-*.exe
+            dist/GDDXX-Jarvis-Windows-x64-Setup-*.exe.sha256

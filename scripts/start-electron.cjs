@@ -24,12 +24,12 @@ if (!installCheck.ok) {
 const childEnv = { ...process.env };
 delete childEnv.ELECTRON_RUN_AS_NODE;
 
-const child = childProcess.spawn(electronPath, [
-  "--disable-gpu",
-  "--disable-gpu-compositing",
-  "--use-gl=swiftshader",
-  ".",
-], {
+const forceSoftware = /^(1|true|yes|on)$/i.test(String(process.env.JARVIS_FORCE_SOFTWARE_RENDERING || ""));
+const launchArgs = forceSoftware
+  ? ["--disable-gpu", "--disable-gpu-compositing", "--use-gl=swiftshader", "."]
+  : ["."];
+
+const child = childProcess.spawn(electronPath, launchArgs, {
   cwd: root,
   env: childEnv,
   stdio: "inherit",
@@ -37,6 +37,7 @@ const child = childProcess.spawn(electronPath, [
 });
 
 console.log(`[Jarvis] Electron runtime: ${electronPath}`);
+console.log(`[Jarvis] Rendering: ${forceSoftware ? "software compatibility mode" : "hardware accelerated"}`);
 
 function stopChild() {
   if (!child.killed) child.kill();

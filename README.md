@@ -18,7 +18,7 @@ Current public release target: Windows 10/11 64-bit.
 ### For normal users: install the app
 
 1. Open this repository's GitHub Releases page.
-2. Download the latest `GDDXX-Jarvis-Windows-x64-Setup-*.exe`.
+2. Download the latest `GDDXX-Jarvis-Windows-x64-Setup-*.exe`. The adjacent `.sha256` file can be verified with `Get-FileHash` before installation.
 3. Run the installer.
 4. Launch `GDDXX-Jarvis` from the desktop or Start menu.
 5. On first launch, use the arrow on the standby screen, then complete the required API, model, and voice setup before entering the workbench.
@@ -41,6 +41,8 @@ For wake voice, say `嗨，贾维斯`, `你好，贾维斯`, or `Hello Jarvis` a
 
 Requirements: Windows 10/11, Node.js 20 or 22 LTS, Git, and a working microphone. Node.js 24 may require a local native build toolchain for `better-sqlite3`.
 
+The simplest source setup is to double-click `Install-From-Source.cmd`. It checks Windows, architecture, Node.js, free space, write access, path length, temporary storage, and PowerShell before installing locked dependencies and verifying Electron.
+
 ```powershell
 git clone https://github.com/shitoudaidi/GDDXX-Jarvis.git
 cd GDDXX-Jarvis
@@ -50,6 +52,8 @@ npm.cmd install
 npm.cmd run doctor:install
 npm.cmd run start:desktop
 ```
+
+Hardware acceleration is used by default. Only if a graphics driver prevents Electron from opening, set `JARVIS_FORCE_SOFTWARE_RENDERING=1` before starting to use the slower compatibility renderer.
 
 Never commit `config.json`. It is intentionally ignored by Git.
 

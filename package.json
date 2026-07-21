@@ -64,12 +64,13 @@
     "probe:turn-feedback": "node scripts/probe-turn-feedback-contract.cjs",
     "probe:error-redaction": "node scripts/probe-public-error-redaction.cjs",
     "probe:release-integrity": "node scripts/probe-release-integrity.cjs",
+    "probe:packaged-runtime": "node scripts/probe-packaged-runtime.cjs",
     "probe:tts-repeat": "node scripts/probe-tts-repeat.cjs",
     "rebuild:native": "node ./node_modules/electron-builder/cli.js install-app-deps",
     "rebuild:web": "npm rebuild better-sqlite3",
     "postinstall": "node ./node_modules/electron-builder/cli.js install-app-deps",
     "verify:voice-bundle": "node scripts/probe-local-voice-bundle.cjs",
-    "pack": "npm run check && npm run verify:voice-bundle && node scripts/build.cjs --dir",
+    "pack": "npm run check && npm run verify:voice-bundle && node scripts/build.cjs --dir && node scripts/probe-packaged-runtime.cjs",
     "dist": "npm run check && npm run verify:voice-bundle && node scripts/build.cjs --win nsis"
   },
   "dependencies": {

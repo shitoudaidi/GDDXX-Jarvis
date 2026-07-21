@@ -15,7 +15,7 @@ const checks = [
   ['offscreen canvas pauses through IntersectionObserver', /new IntersectionObserver/],
   ['WebGL context loss has a visual fallback', /webglcontextlost/.test(vortex) && /webgl-unavailable/.test(vortex)],
   ['conversation history exposes busy state', /aria-busy=\{sending\}/],
-  ['text input references the live turn status', /aria-describedby="turn-status"/],
+  ['text input references the live turn status', /aria-describedby="[^"]*\bturn-status\b[^"]*"/],
   ['command dock has a landmark label', /aria-label="Jarvis 指令输入"/],
   ['coarse pointers receive 40px targets', /@media \(pointer: coarse\)[\s\S]{0,220}min-height: 40px/],
   ['forced-colors focus remains visible', /@media \(forced-colors: active\)[\s\S]{0,240}outline: 3px solid Highlight/],

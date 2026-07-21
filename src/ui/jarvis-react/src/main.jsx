@@ -28,6 +28,7 @@ import {
   Play,
   Radio,
   RefreshCw,
+  Search,
   Send,
   Settings2,
   ShieldCheck,
@@ -1038,7 +1039,14 @@ function HudTerminal({ messages, sending, lastError, turnState, voiceRecovery, o
   const [followLatest, setFollowLatest] = useState(true);
   const [expandedMessages, setExpandedMessages] = useState(() => new Set());
   const [copiedId, setCopiedId] = useState(null);
-  const visibleMessages = showAll ? messages : messages.slice(-40);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [historyQuery, setHistoryQuery] = useState("");
+  const searchRef = useRef(null);
+  const normalizedQuery = historyQuery.trim().toLocaleLowerCase();
+  const matchingMessages = normalizedQuery
+    ? messages.filter((message) => `${cleanText(message.content)} ${message.channel || ""}`.toLocaleLowerCase().includes(normalizedQuery))
+    : messages;
+  const visibleMessages = normalizedQuery || showAll ? matchingMessages : matchingMessages.slice(-40);
   const terminalRef = useRef(null);
 
   useEffect(() => {
@@ -1055,6 +1063,15 @@ function HudTerminal({ messages, sending, lastError, turnState, voiceRecovery, o
     window.requestAnimationFrame(() => terminalRef.current?.scrollTo({ top: terminalRef.current.scrollHeight, behavior: "smooth" }));
   }, []);
 
+  const toggleHistorySearch = useCallback(() => {
+    setSearchOpen((current) => {
+      const next = !current;
+      if (!next) setHistoryQuery("");
+      else window.requestAnimationFrame(() => searchRef.current?.focus());
+      return next;
+    });
+  }, []);
+
   const copyMessage = useCallback(async (message) => {
     await navigator.clipboard.writeText(cleanText(message.content));
     setCopiedId(message.id);
@@ -1065,11 +1082,22 @@ function HudTerminal({ messages, sending, lastError, turnState, voiceRecovery, o
     <aside className="hud-terminal" aria-label="对话记录" aria-busy={sending}>
       <div className="terminal-cap">
         <div><span>对话历史</span><small>CONVERSATION HISTORY</small></div>
-        <div id="turn-status" className={cls("turn-owner", turnState.tone)} aria-live="polite">
-          {sending ? <Loader2 className="spin" size={13} /> : <Radio size={13} />}
-          <span>{turnState.label}</span>
+        <div className="terminal-cap-actions">
+          <button type="button" className={cls("history-search-toggle", searchOpen && "active")} onClick={toggleHistorySearch} aria-label={searchOpen ? "关闭历史搜索" : "搜索对话历史"} aria-expanded={searchOpen}><Search size={13} /></button>
+          <div id="turn-status" className={cls("turn-owner", turnState.tone)} aria-live="polite">
+            {sending ? <Loader2 className="spin" size={13} /> : <Radio size={13} />}
+            <span>{turnState.label}</span>
+          </div>
         </div>
       </div>
+      {searchOpen ? (
+        <div className="history-search">
+          <Search size={13} aria-hidden="true" />
+          <input ref={searchRef} type="search" value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") toggleHistorySearch(); }} placeholder="搜索内容或来源" aria-label="搜索对话内容或来源" />
+          <span role="status" aria-live="polite">{normalizedQuery ? `${matchingMessages.length} 条` : `${messages.length} 条`}</span>
+          {historyQuery ? <button type="button" onClick={() => { setHistoryQuery(""); searchRef.current?.focus(); }} aria-label="清空历史搜索"><X size={12} /></button> : null}
+        </div>
+      ) : null}
       <div
         className="terminal-lines"
         ref={terminalRef}
@@ -1078,16 +1106,18 @@ function HudTerminal({ messages, sending, lastError, turnState, voiceRecovery, o
           setFollowLatest(element.scrollHeight - element.scrollTop - element.clientHeight < 32);
         }}
       >
-        {!showAll && messages.length > 40 ? (
+        {!normalizedQuery && !showAll && messages.length > 40 ? (
           <button type="button" className="history-expand" onClick={() => setShowAll(true)}>
             <ChevronUp size={13} />显示较早的 {messages.length - 40} 条
           </button>
-        ) : showAll && messages.length > 40 ? (
+        ) : !normalizedQuery && showAll && messages.length > 40 ? (
           <button type="button" className="history-expand" onClick={() => setShowAll(false)}>
             <ChevronDown size={13} />收起较早消息
           </button>
         ) : null}
-        {visibleMessages.length === 0 ? (
+        {visibleMessages.length === 0 && normalizedQuery ? (
+          <div className="terminal-empty search-empty"><Search size={18} aria-hidden="true" /><strong>没有匹配的对话</strong><span>换一个关键词，或清空搜索</span></div>
+        ) : visibleMessages.length === 0 ? (
           <div className="terminal-empty">
             <Radio size={18} aria-hidden="true" />
             <strong>等待您的指令</strong>

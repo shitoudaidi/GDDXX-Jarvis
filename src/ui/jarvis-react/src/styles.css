@@ -4386,3 +4386,40 @@ aside.acui-result-layer[data-connected="true"] ~ .news-ticker {
   outline: 1px solid rgba(232, 183, 102, 0.72);
   outline-offset: 2px;
 }
+.terminal-cap-actions,
+.history-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.history-search-toggle,
+.history-search button {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid rgba(128, 164, 176, 0.2);
+  background: transparent;
+  color: #78909a;
+  cursor: pointer;
+}
+
+.history-search-toggle.active { color: #b8edf4; border-color: rgba(85, 201, 232, 0.48); }
+
+.history-search {
+  margin: 6px 8px 0;
+  padding: 6px 8px;
+  border: 1px solid rgba(128, 164, 176, 0.18);
+  background: rgba(2, 8, 11, 0.72);
+}
+
+.history-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: #dce9ec;
+}
+
+.history-search > span { color: #71858d; font: 9px/1 var(--font-mono); white-space: nowrap; }

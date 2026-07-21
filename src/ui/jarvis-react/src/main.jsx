@@ -324,7 +324,7 @@ function useClock() {
 
 function StatusPill({ ok, label, detail, compact = false }) {
   return (
-    <div className={cls("status-pill", ok ? "ok" : "warn", compact && "compact")}>
+    <div className={cls("status-pill", ok ? "ok" : "warn", compact && "compact")} title={`${label}：${detail || "暂无详情"}`}>
       {ok ? <CheckCircle2 size={14} /> : <CircleAlert size={14} />}
       <span>{label}</span>
       {detail ? <em>{detail}</em> : null}

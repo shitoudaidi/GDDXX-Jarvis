@@ -4265,3 +4265,51 @@ aside.acui-result-layer[data-connected="true"] ~ .news-ticker {
     width: 48px;
   }
 }
+
+/* Round 05: reduce duplicated telemetry and let the entity own the central field. */
+.app-shell.mode-active .core-readouts,
+.app-shell.mode-active .workbench-status-strip,
+.app-shell.mode-active .workbench-footer { display: none; }
+
+.app-shell.mode-active .workbench-diagnostics { right: 24px; bottom: 24px; left: 24px; }
+
+.app-shell.mode-active .command-dock:not(.text-open) {
+  grid-template-columns: 56px 44px 48px 48px 48px;
+  justify-content: center;
+  column-gap: 12px;
+}
+
+.app-shell.mode-active .command-dock:not(.text-open) .dock-input,
+.app-shell.mode-active .command-dock:not(.text-open) .send { display: none; }
+
+.app-shell.mode-active .command-dock:not(.text-open) .voice-command {
+  width: 56px;
+  min-width: 56px;
+  height: 56px;
+  min-height: 56px;
+}
+
+.app-shell.mode-active .dock-wave { opacity: 0.18; transition: opacity 180ms ease; }
+.app-shell.mode-active .dock-wave.active { opacity: 1; }
+
+.app-shell.mode-active .hud-terminal,
+.app-shell.mode-active .jarvis-workbench,
+.app-shell.mode-active .intelligence-rail > section { border-color: #203944; }
+
+.app-shell.mode-active .terminal-cap,
+.app-shell.mode-active .workbench-header,
+.app-shell.mode-active .rail-heading,
+.app-shell.mode-active .news-ticker-head { box-shadow: inset 0 -1px rgba(85, 201, 232, 0.08); }
+
+.app-shell.mode-active .jarvis-workbench.workbench-listening { border-top-color: rgba(85, 201, 232, 0.72); }
+.app-shell.mode-active .jarvis-workbench.workbench-thinking { border-top-color: rgba(241, 207, 140, 0.72); }
+.app-shell.mode-active .jarvis-workbench.workbench-speaking { border-top-color: rgba(84, 217, 165, 0.72); }
+.app-shell.mode-active .jarvis-workbench.workbench-thinking .workbench-header strong { color: #f1cf8c; }
+.app-shell.mode-active .jarvis-workbench.workbench-speaking .workbench-header strong { color: #54d9a5; }
+
+@media (max-width: 1180px) {
+  .app-shell.mode-active .agent-portrait .entity-vortex {
+    transform: scale(0.82);
+    transform-origin: center;
+  }
+}

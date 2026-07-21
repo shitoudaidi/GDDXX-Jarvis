@@ -954,13 +954,33 @@ async function runLayoutProbe() {
         const dock = document.querySelector(".command-dock");
         const dockRect = dock?.getBoundingClientRect();
         const dockChildrenOutside = dockRect ? [...dock.children].filter(child => {
+          const style = getComputedStyle(child);
+          if (style.display === "none" || style.visibility === "hidden") return false;
           const rect = child.getBoundingClientRect();
           return rect.left < dockRect.left - 1 || rect.right > dockRect.right + 1 || rect.top < dockRect.top - 1 || rect.bottom > dockRect.bottom + 1;
         }).map(child => child.className || child.tagName) : [];
+        const visibleDockChildren = dock ? [...dock.children].filter((child) => {
+          const style = getComputedStyle(child);
+          return style.display !== "none" && style.visibility !== "hidden";
+        }) : [];
+        const visibleDockRects = visibleDockChildren.map((child) => child.getBoundingClientRect()).filter((rect) => rect.width > 0);
+        const controlsCenter = visibleDockRects.length
+          ? (Math.min(...visibleDockRects.map((rect) => rect.left)) + Math.max(...visibleDockRects.map((rect) => rect.right))) / 2
+          : 0;
+        const controlsCentered = Boolean(dockRect && Math.abs(controlsCenter - (dockRect.left + dockRect.width / 2)) < 12);
+        const duplicatedTelemetryHidden = [".core-readouts", ".workbench-status-strip", ".workbench-footer"].every((selector) => {
+          const element = document.querySelector(selector);
+          return !element || getComputedStyle(element).display === "none";
+        });
+        const statusDetailsAccessible = [...document.querySelectorAll(".status-pill")].every((item) => Boolean(item.title));
+        const vortex = document.querySelector(".entity-vortex");
+        const minimumEntityScaled = innerWidth >= 1180 || (vortex && getComputedStyle(vortex).transform !== "none");
         return {
-          ok: overlaps.length === 0 && outside.length === 0 && overflow.length === 0 && dockChildrenOutside.length === 0,
+          ok: overlaps.length === 0 && outside.length === 0 && overflow.length === 0 && dockChildrenOutside.length === 0
+            && controlsCentered && duplicatedTelemetryHidden && statusDetailsAccessible && minimumEntityScaled,
           viewport: { width: innerWidth, height: innerHeight, devicePixelRatio },
           rects, overlaps, outside, overflow, dockChildrenOutside,
+          visualHierarchy: { controlsCentered, duplicatedTelemetryHidden, statusDetailsAccessible, minimumEntityScaled },
         };
       })();
     `, true);

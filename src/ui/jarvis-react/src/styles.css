@@ -2474,6 +2474,17 @@ aside.acui-result-layer[data-connected="true"] ~ .news-ticker {
   z-index: 1;
 }
 
+.module-link {
+  position: relative;
+}
+
+.module-external {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  color: #6f8791;
+}
+
 .drawer-head,
 .panel-title {
   display: flex;

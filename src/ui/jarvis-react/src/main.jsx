@@ -611,15 +611,17 @@ function MessageLine({ message, live }) {
 
 function ModuleLink({ item, api, onSettings, onEngineering, active }) {
   const Icon = item.icon;
+  const external = Boolean(item.path);
   const open = () => {
     if (item.action === "settings") onSettings?.();
     else if (item.action === "engineering") onEngineering?.();
     else window.open(`${api}${item.path}`, "_blank", "noopener,noreferrer");
   };
   return (
-    <button className={cls("module-link", active && "active")} type="button" onClick={open} aria-pressed={item.action === "engineering" ? !!active : undefined}>
+    <button className={cls("module-link", active && "active")} type="button" onClick={open} aria-label={external ? `打开${item.label}（新窗口）` : item.label} title={external ? `${item.label}（新窗口）` : item.label} aria-haspopup={item.action === "settings" ? "dialog" : undefined} aria-expanded={item.action === "settings" ? !!active : undefined} aria-pressed={item.action === "engineering" ? !!active : undefined}>
       <Icon size={16} />
       <span>{item.label}</span>
+      {external ? <ExternalLink className="module-external" size={9} aria-hidden="true" /> : null}
     </button>
   );
 }
@@ -1496,9 +1498,9 @@ function SettingsDrawer({ open, onClose, activation, readiness, api, refreshAll 
             ) : null}
           </div>
 
-          <div className="drawer-section link-grid">
-            {LINKS.map((item) => <ModuleLink key={item.path || item.action} item={item} api={api} onSettings={onClose} />)}
-          </div>
+          <nav className="drawer-section link-grid" aria-label="更多工作入口">
+            {LINKS.filter((item) => item.path).map((item) => <ModuleLink key={item.path} item={item} api={api} />)}
+          </nav>
         </motion.aside>
         </motion.div>
       ) : null}
@@ -1830,6 +1832,7 @@ function App() {
   const [voiceStatusText, setVoiceStatusText] = useState("点按语音开始");
   const [lastError, setLastError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshNotice, setRefreshNotice] = useState("");
   const [interfaceMode, setInterfaceMode] = useState("standby");
   const [musicEnabled, setMusicEnabled] = useState(() => isAmbientMusicEnabled());
   const [engineeringOpen, setEngineeringOpen] = useState(false);
@@ -3178,20 +3181,30 @@ function App() {
           <StatusPill ok={!!caps.asr?.ready} pending={readinessPending} label="语音" detail={voiceDetail} compact />
         </div>
         <div className="header-tools">
-          <div className="module-strip" aria-label="工作入口">
+          <nav className="module-strip" aria-label="工作入口">
             {LINKS.filter((item) => ["settings", "engineering"].includes(item.action) || item.label === "记忆库").map((item) => <ModuleLink
               key={item.path || item.action}
               item={item}
               api={api}
-              active={item.action === "engineering" && engineeringOpen}
+              active={item.action === "engineering" ? engineeringOpen : item.action === "settings" ? drawerOpen : false}
               onSettings={() => setDrawerOpen(true)}
               onEngineering={() => setEngineeringOpen((current) => !current)}
             />)}
-          </div>
-          <div className="header-actions">
-          <button className="icon-btn" type="button" disabled={refreshing} aria-busy={refreshing} onClick={() => refreshAll().then(loadConversations).catch(() => {})} aria-label="刷新状态" title="刷新状态">
+          </nav>
+          <div className="header-actions" role="toolbar" aria-label="状态工具">
+          <button className="icon-btn" type="button" disabled={refreshing} aria-busy={refreshing} onClick={async () => {
+            setRefreshNotice("正在刷新状态");
+            try {
+              await refreshAll();
+              await loadConversations();
+              setRefreshNotice("状态已刷新");
+            } catch {
+              setRefreshNotice("状态刷新失败");
+            }
+          }} aria-label={refreshing ? "正在刷新状态" : "刷新状态"} title={refreshing ? "正在刷新状态" : "刷新状态"}>
             <RefreshCw className={cls(refreshing && "spin")} size={18} />
           </button>
+          <span className="sr-only" role="status" aria-live="polite">{refreshNotice}</span>
           </div>
         </div>
       </header>

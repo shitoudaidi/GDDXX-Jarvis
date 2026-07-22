@@ -3832,6 +3832,68 @@ aside.acui-result-layer[data-connected="true"] ~ .news-ticker {
   }
 }
 
+.app-shell.mode-active .news-position {
+  color: #78909a;
+  font: 9px/1 var(--font-mono);
+}
+
+.app-shell.mode-active .news-ticker.is-stale .news-ticker-head {
+  border-bottom-color: rgba(227, 184, 108, 0.34);
+}
+
+.app-shell.mode-active .news-ticker.is-stale .news-ticker-actions > small:first-child {
+  color: #e3b86c;
+}
+
+.app-shell.mode-active .news-external {
+  flex: 0 0 auto;
+  align-self: center;
+  color: #627984;
+}
+
+.app-shell.mode-active .news-ticker-empty {
+  gap: 9px;
+  text-align: center;
+}
+
+.app-shell.mode-active .news-ticker-empty button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #294550;
+  border-radius: 4px;
+  background: #081216;
+  color: #b9dce4;
+  cursor: pointer;
+}
+
+.news-skeleton {
+  display: grid;
+  gap: 14px;
+  padding: 18px 14px;
+}
+
+.news-skeleton i {
+  display: grid;
+  gap: 7px;
+}
+
+.news-skeleton span {
+  display: block;
+  width: 42%;
+  height: 7px;
+  background: #17272e;
+  animation: news-skeleton-pulse 1.4s ease-in-out infinite alternate;
+}
+
+.news-skeleton span + span {
+  width: 88%;
+  height: 10px;
+}
+
+@keyframes news-skeleton-pulse {
+  to { background: #243c46; }
+}
+
 @media (max-width: 900px) {
   .app-shell.mode-active {
     --left-rail: 230px;

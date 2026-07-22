@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   Activity,
   ArrowRight,
@@ -15,6 +15,7 @@ import {
   FileText,
   Eye,
   EyeOff,
+  ExternalLink,
   KeyRound,
   Keyboard,
   GitCompare,
@@ -371,6 +372,7 @@ function NewsTicker({ api }) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [loading, setLoading] = useState(false);
+  const reduceMotion = useReducedMotion();
   const loadingRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -395,7 +397,7 @@ function NewsTicker({ api }) {
       setError("");
       setIndex((current) => next.length ? current % next.length : 0);
     } catch (loadError) {
-      setError(loadError.message || "资讯源暂无数据");
+      setError(String(loadError.message || "资讯源暂无数据").replace(/\s+/g, " ").slice(0, 120));
     } finally {
       loadingRef.current = false;
       setLoading(false);
@@ -418,15 +420,20 @@ function NewsTicker({ api }) {
     if (!items.length) return [];
     return Array.from({ length: Math.min(3, items.length) }, (_, offset) => items[(index + offset) % items.length]);
   }, [index, items]);
-  const updated = fetchedAt ? new Date(fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }) : "--:--";
+  const updatedDate = fetchedAt ? new Date(fetchedAt) : null;
+  const updated = updatedDate && !Number.isNaN(updatedDate.getTime())
+    ? updatedDate.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
+    : "--:--";
+  const stale = Boolean(error && items.length);
 
   return (
-    <section className={cls("news-ticker", !items.length && "is-empty")} aria-label="AI Hot 实时资讯">
+    <section className={cls("news-ticker", !items.length && "is-empty", stale && "is-stale")} aria-label="AI Hot 实时资讯" aria-busy={loading}>
       <header className="news-ticker-head">
         <div><Newspaper size={14} /><span>AI 新闻</span><small>AI NEWS</small></div>
         <div className="news-ticker-actions">
-          <small>{error ? "OFFLINE" : updated}</small>
-          <button type="button" className="news-icon" onClick={() => setPaused((value) => !value)} aria-label={paused ? "继续滚动资讯" : "暂停滚动资讯"} title={paused ? "继续滚动资讯" : "暂停滚动资讯"}>
+          <small role="status" aria-live="polite">{stale ? "STALE" : error ? "OFFLINE" : updated}</small>
+          {items.length > 1 ? <small className="news-position" aria-label={`第 ${index + 1} 条，共 ${items.length} 条`}>{index + 1}/{items.length}</small> : null}
+          <button type="button" className="news-icon" onClick={() => setPaused((value) => !value)} disabled={items.length < 2} aria-label={paused ? "继续滚动资讯" : "暂停滚动资讯"} title={paused ? "继续滚动资讯" : "暂停滚动资讯"}>
             {paused ? <Play size={13} /> : <Pause size={13} />}
           </button>
           <button type="button" className="news-icon" onClick={load} disabled={loading} aria-label="刷新资讯" title="刷新资讯"><RefreshCw className={cls(loading && "spin")} size={13} /></button>
@@ -437,22 +444,24 @@ function NewsTicker({ api }) {
           {visibleItems.map((item, visibleIndex) => (
             <motion.a
               className="news-ticker-item"
-              key={item.id}
+              key={`${item.id}-${visibleIndex}`}
               href={item.url || undefined}
               target={item.url ? "_blank" : undefined}
               rel={item.url ? "noopener noreferrer" : undefined}
               aria-label={item.url ? `打开${item.label}：${item.title}` : undefined}
-              initial={{ opacity: 0, y: 6 }}
+              initial={reduceMotion ? false : { opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, delay: visibleIndex * 0.03 }}
+              transition={{ duration: reduceMotion ? 0 : 0.2, delay: reduceMotion ? 0 : visibleIndex * 0.03 }}
             >
               <div className="news-ticker-meta"><b>{String(item.rank).padStart(2, "0")}</b><span>{item.label}</span>{item.heat ? <em>{item.heat}</em> : null}</div>
-              <p>{item.title}</p>
+              <p>{item.title}</p><ExternalLink className="news-external" size={12} aria-hidden="true" />
             </motion.a>
           ))}
         </div>
+      ) : loading ? (
+        <div className="news-skeleton" aria-label="正在加载 AI 新闻">{[0, 1, 2].map((row) => <i key={row}><span /><span /></i>)}</div>
       ) : (
-        <div className="news-ticker-empty"><Newspaper size={18} /><span>{error || "正在连接资讯源"}</span></div>
+        <div className="news-ticker-empty"><Newspaper size={18} /><span>{error || "暂无可用资讯"}</span>{error ? <button type="button" onClick={load}>重新加载</button> : null}</div>
       )}
     </section>
   );

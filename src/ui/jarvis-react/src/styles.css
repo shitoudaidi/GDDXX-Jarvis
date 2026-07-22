@@ -2502,6 +2502,10 @@ aside.acui-result-layer[data-connected="true"] ~ .news-ticker {
   color: #e3b86c;
 }
 
+.entity-frame.video-fallback .entity-matte {
+  opacity: 0.72;
+}
+
 .engineering-truncated {
   display: block;
   padding: 8px 12px 0;

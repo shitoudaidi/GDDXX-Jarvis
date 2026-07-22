@@ -824,6 +824,8 @@ function EngineeringConsole({ status, open, onClose, onRun, onCancel, onPermissi
 function AgentPortrait({ state, voiceStatusText, sending, mode, audioLevel = 0 }) {
   const video = VISUALS[state] || VISUALS.idle;
   const [videoFailed, setVideoFailed] = useState(false);
+  const videoRef = useRef(null);
+  const reduceMotion = useReducedMotion();
   const energy = amplifyAudioLevel(audioLevel);
   const particleEnergy = clamp01(Math.pow(energy, 1.45) * 0.42);
   const frameShift = state === "speaking" ? -1.5 - energy * 2.4 : state === "listening" ? -1.2 - energy * 1.1 : state === "thinking" ? -0.4 : 0;
@@ -886,21 +888,34 @@ function AgentPortrait({ state, voiceStatusText, sending, mode, audioLevel = 0 }
     setVideoFailed(false);
   }, [video]);
 
+  useEffect(() => {
+    const syncPlayback = () => {
+      const element = videoRef.current;
+      if (!element) return;
+      if (document.hidden || reduceMotion) element.pause();
+      else element.play?.().catch?.(() => {});
+    };
+    document.addEventListener("visibilitychange", syncPlayback);
+    syncPlayback();
+    return () => document.removeEventListener("visibilitychange", syncPlayback);
+  }, [reduceMotion, video]);
+
   return (
     <section className={cls("agent-portrait", `state-${state}`, `mode-${mode}`)} aria-label="Jarvis 状态">
       <motion.div
-        className="entity-frame"
+        className={cls("entity-frame", videoFailed && "video-fallback")}
         initial={false}
-        animate={{
+        animate={reduceMotion ? { y: 0, scale: 1, rotateZ: 0 } : {
           y: frameShift,
           scale: frameScale,
           rotateZ: frameRotate
         }}
-        transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: reduceMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1] }}
         style={energyStyle}
       >
         <AnimatePresence mode="sync" initial={false}>
-          <motion.video
+          {!videoFailed ? <motion.video
+            ref={videoRef}
             key={video}
             className={cls("entity-video", videoFailed && "is-failed")}
             src={video}
@@ -908,20 +923,25 @@ function AgentPortrait({ state, voiceStatusText, sending, mode, audioLevel = 0 }
             muted
             loop
             playsInline
+            preload="metadata"
+            disablePictureInPicture
             aria-hidden="true"
             onError={() => setVideoFailed(true)}
             onLoadedData={(event) => {
-              event.currentTarget.play?.().catch?.(() => {});
+              if (reduceMotion) {
+                event.currentTarget.pause();
+                event.currentTarget.currentTime = Math.min(0.08, event.currentTarget.duration || 0.08);
+              } else if (!document.hidden) event.currentTarget.play?.().catch?.(() => {});
             }}
-            initial={{ opacity: 0, scale: 1.04, filter: "blur(5px) saturate(0.9) brightness(0.9)" }}
-            animate={{
+            initial={false}
+            animate={reduceMotion ? { opacity: videoOpacity, scale: videoScaleBase, filter: "none" } : {
               opacity: videoOpacity,
               scale: videoScaleBase + videoStateBoost,
               filter: videoFilter
             }}
-            exit={{ opacity: 0, scale: 1.1, filter: "blur(9px) saturate(0.85) brightness(0.86)" }}
-            transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
-          />
+            exit={reduceMotion ? undefined : { opacity: 0, scale: 1.1, filter: "blur(9px) saturate(0.85) brightness(0.86)" }}
+            transition={{ duration: reduceMotion ? 0 : 0.42, ease: [0.22, 1, 0.36, 1] }}
+          /> : null}
         </AnimatePresence>
         <JarvisParticleVortex state={state} audioLevel={particleEnergy} />
         <div className="entity-waveform" aria-hidden="true" />

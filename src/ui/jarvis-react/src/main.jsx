@@ -640,6 +640,8 @@ function EngineeringConsole({ status, open, onClose, onRun, onCancel, onPermissi
   const [answeringPermission, setAnsweringPermission] = useState(false);
   const [error, setError] = useState("");
   const outputRef = useRef(null);
+  const promptRef = useRef(null);
+  const [followEngineeringOutput, setFollowEngineeringOutput] = useState(true);
   const task = status?.task || null;
   const isRunning = ["starting", "running", "waiting_permission"].includes(task?.status);
   const workspace = task?.cwd || status?.defaultCwd || "H:\\Jarvis\\runtime\\jarvis\\sandbox";
@@ -659,9 +661,19 @@ function EngineeringConsole({ status, open, onClose, onRun, onCancel, onPermissi
   };
 
   useEffect(() => {
-    if (!open || !outputRef.current) return;
+    if (!open || !outputRef.current || !followEngineeringOutput) return;
     outputRef.current.scrollTop = outputRef.current.scrollHeight;
-  }, [open, task?.output, task?.events?.length]);
+  }, [followEngineeringOutput, open, task?.output, task?.events?.length]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    if (!isRunning) window.requestAnimationFrame(() => promptRef.current?.focus());
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isRunning, onClose, open]);
 
   useEffect(() => {
     if (!task?.completedAt || !task?.id) return;
@@ -734,7 +746,7 @@ function EngineeringConsole({ status, open, onClose, onRun, onCancel, onPermissi
 
       <div className="engineering-layout">
         <aside className="engineering-sidebar" aria-label="工程台导航">
-          <button className="engineering-new-task" type="button" onClick={() => { setPrompt(""); setError(""); }} disabled={isRunning}>
+          <button className="engineering-new-task" type="button" onClick={() => { setPrompt(""); setError(""); window.requestAnimationFrame(() => promptRef.current?.focus()); }} disabled={isRunning}>
             <FileText size={15} />新建任务
           </button>
           <section className="engineering-side-section">
@@ -745,7 +757,7 @@ function EngineeringConsole({ status, open, onClose, onRun, onCancel, onPermissi
           <section className="engineering-side-section">
             <span>任务线程 / THREADS</span>
             <div className="engineering-history">
-              {history.length ? history.slice(0, 5).map((item) => <button key={item.id} type="button" title={item.prompt} onClick={() => { setPrompt(item.prompt); setView("conversation"); }}><i className={item.status === "completed" ? "done" : "fail"} />{item.prompt}</button>) : <small>完成的任务会保留在这里</small>}
+              {history.length ? history.slice(0, 5).map((item) => <button key={item.id} type="button" title={item.prompt} onClick={() => { setPrompt(item.prompt); setView("conversation"); window.requestAnimationFrame(() => promptRef.current?.focus()); }}><i className={item.status === "completed" ? "done" : "fail"} />{item.prompt}</button>) : <small>完成的任务会保留在这里</small>}
             </div>
           </section>
           <section className="engineering-side-section">
@@ -772,10 +784,20 @@ function EngineeringConsole({ status, open, onClose, onRun, onCancel, onPermissi
             <span>STORAGE <b>H: ONLY</b></span>
           </div>
           <nav className="engineering-tabs" aria-label="工程视图" role="tablist">
-            {[['conversation','对话'],['plan','计划'],['changes','变更'],['terminal','终端']].map(([key, label]) => <button key={key} type="button" role="tab" aria-selected={view === key} className={view === key ? "active" : ""} onClick={() => setView(key)}>{label}</button>)}
+            {[['conversation','对话'],['plan','计划'],['changes','变更'],['terminal','终端']].map(([key, label], index, tabs) => <button key={key} type="button" role="tab" aria-selected={view === key} tabIndex={view === key ? 0 : -1} className={view === key ? "active" : ""} onClick={() => setView(key)} onKeyDown={(event) => {
+              if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+              event.preventDefault();
+              const offset = event.key === 'ArrowRight' ? 1 : -1;
+              const next = tabs[(index + offset + tabs.length) % tabs.length][0];
+              setView(next);
+              window.requestAnimationFrame(() => event.currentTarget.parentElement?.querySelector(`[role="tab"][tabindex="0"]`)?.focus());
+            }}>{label}</button>)}
           </nav>
           <div className="engineering-body">
-            <div className="engineering-output" ref={outputRef} aria-live="polite">
+            <div className="engineering-output" ref={outputRef} aria-live="polite" aria-busy={isRunning} onScroll={(event) => {
+              const element = event.currentTarget;
+              setFollowEngineeringOutput(element.scrollHeight - element.scrollTop - element.clientHeight < 40);
+            }}>
               {view === "conversation" ? <>
                 {task?.prompt ? <div className="engineering-request"><span>任务</span><p>{task.prompt}</p></div> : null}
                 {task?.thought && isRunning ? <div className="engineering-thinking"><Loader2 className="spin" size={13} /><span>DeepSeek 正在分析与执行</span></div> : null}
@@ -785,6 +807,7 @@ function EngineeringConsole({ status, open, onClose, onRun, onCancel, onPermissi
                 : <div className="engineering-empty"><TerminalSquare size={28} /><strong>终端输出</strong><span>{task?.events?.length ? "命令执行事件已记录在右侧轨迹" : "Agent 运行命令后，终端事件会显示在右侧"}</span></div>}
               {task?.error ? <div className="engineering-error"><CircleAlert size={14} /><span>{task.error}</span></div> : null}
             </div>
+            {!followEngineeringOutput ? <button className="engineering-jump-latest" type="button" onClick={() => { setFollowEngineeringOutput(true); outputRef.current?.scrollTo({ top: outputRef.current.scrollHeight, behavior: "smooth" }); }}><ChevronDown size={13} />最新输出</button> : null}
             <aside className="engineering-events" aria-label="执行轨迹">
               <span>EXECUTION TRACE</span>
               {(task?.events || []).slice(-9).reverse().map((item, index) => (
@@ -804,7 +827,7 @@ function EngineeringConsole({ status, open, onClose, onRun, onCancel, onPermissi
           ) : null}
 
           <form className="engineering-command" onSubmit={submit}>
-            <textarea value={prompt} maxLength={4000} onChange={(event) => setPrompt(event.target.value)} placeholder="描述要工程代理完成的任务" rows={2} disabled={isRunning} aria-describedby="engineering-prompt-count" />
+            <textarea ref={promptRef} value={prompt} maxLength={4000} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} placeholder="描述要工程代理完成的任务" rows={2} disabled={isRunning} aria-describedby="engineering-prompt-count" />
             <small id="engineering-prompt-count" className={cls("engineering-prompt-count", prompt.length >= 3600 && "warn")}>{prompt.length}/4000</small>
             {isRunning ? (
               <button className="secondary engineering-stop" type="button" disabled={cancelling} onClick={cancelTask}>{cancelling ? <Loader2 className="spin" size={15} /> : <Square size={15} />}停止</button>
@@ -814,7 +837,7 @@ function EngineeringConsole({ status, open, onClose, onRun, onCancel, onPermissi
               </button>
             )}
           </form>
-          {error ? <div className="engineering-form-error">{error}</div> : null}
+          {error ? <div className="engineering-form-error" role="alert">{error}</div> : null}
         </div>
       </div>
     </section>
@@ -1449,7 +1472,7 @@ function SettingsDrawer({ open, onClose, activation, readiness, api, refreshAll 
   };
 
   return (
-    <AnimatePresence>
+    <React.Fragment>
       {open ? (
         <div className="drawer-backdrop" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
         <motion.aside
@@ -1567,7 +1590,7 @@ function SettingsDrawer({ open, onClose, activation, readiness, api, refreshAll 
         </motion.aside>
         </div>
       ) : null}
-    </AnimatePresence>
+    </React.Fragment>
   );
 }
 

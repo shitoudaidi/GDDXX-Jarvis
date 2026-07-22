@@ -2506,6 +2506,27 @@ aside.acui-result-layer[data-connected="true"] ~ .news-ticker {
   opacity: 0.72;
 }
 
+.engineering-jump-latest {
+  position: absolute;
+  right: 190px;
+  bottom: 88px;
+  z-index: 2;
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid #294550;
+  border-radius: 4px;
+  background: #071116;
+  color: #b9dce4;
+  cursor: pointer;
+}
+
+.engineering-body {
+  position: relative;
+}
+
 /* 2026-07-22: readable secondary telemetry without making it compete with primary content. */
 .app-shell.mode-active .header-clock span,
 .app-shell.mode-active .status-pill em,

@@ -1067,6 +1067,8 @@ async function runLayoutProbe() {
       return { ok: Boolean(form && inside && secretToggles && requiredFields), inside, secretToggles, requiredFields };
     })();
   `, true);
+  // Fixed layers can lag the renderer's DOM by one compositor frame on Windows.
+  await new Promise((resolve) => setTimeout(resolve, 220));
   const firstRunImage = await mainWindow.webContents.capturePage();
   const firstRunScreenshot = path.join(outputDir, "jarvis-layout-first-run.png");
   fs.writeFileSync(firstRunScreenshot, firstRunImage.toPNG());

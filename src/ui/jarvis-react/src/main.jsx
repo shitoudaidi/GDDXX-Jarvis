@@ -630,9 +630,14 @@ function EngineeringConsole({ status, open, onClose, onRun, onCancel, onPermissi
   const [prompt, setPrompt] = useState("");
   const [view, setView] = useState("conversation");
   const [history, setHistory] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("jarvis-engineering-history") || "[]"); } catch { return []; }
+    try {
+      const stored = JSON.parse(localStorage.getItem("jarvis-engineering-history") || "[]");
+      return Array.isArray(stored) ? stored.slice(0, 12).map((item) => ({ ...item, prompt: String(item?.prompt || "").slice(0, 240) })).filter((item) => item.id && item.prompt) : [];
+    } catch { return []; }
   });
   const [submitting, setSubmitting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [answeringPermission, setAnsweringPermission] = useState(false);
   const [error, setError] = useState("");
   const outputRef = useRef(null);
   const task = status?.task || null;
@@ -677,22 +682,40 @@ function EngineeringConsole({ status, open, onClose, onRun, onCancel, onPermissi
       await onRun(value);
       setPrompt("");
     } catch (submitError) {
-      setError(submitError.message || "工程任务提交失败");
+      setError(boundedFeedback(submitError.message, "工程任务提交失败"));
     } finally {
       setSubmitting(false);
     }
   };
 
   const runQuickAction = async (value) => {
-    if (isRunning || !status?.available) return;
+    if (isRunning || submitting || !status?.available) return;
+    setSubmitting(true);
     setError("");
     setPrompt(value);
     try {
       await onRun(value);
     } catch (runError) {
-      setError(runError.message || "工程任务提交失败");
+      setError(boundedFeedback(runError.message, "工程任务提交失败"));
+    } finally {
+      setSubmitting(false);
     }
   };
+
+  const cancelTask = async () => {
+    if (cancelling) return;
+    setCancelling(true);
+    try { await onCancel(); } finally { setCancelling(false); }
+  };
+
+  const answerPermission = async (answer) => {
+    if (answeringPermission) return;
+    setAnsweringPermission(true);
+    try { await onPermission(answer); } finally { setAnsweringPermission(false); }
+  };
+
+  const outputText = String(task?.output || "");
+  const visibleOutput = outputText.length > 50_000 ? outputText.slice(-50_000) : outputText;
 
   if (!open) return null;
   return (
@@ -748,15 +771,15 @@ function EngineeringConsole({ status, open, onClose, onRun, onCancel, onPermissi
             <span>WORKSPACE <b>{workspace}</b></span>
             <span>STORAGE <b>H: ONLY</b></span>
           </div>
-          <nav className="engineering-tabs" aria-label="工程视图">
-            {[['conversation','对话'],['plan','计划'],['changes','变更'],['terminal','终端']].map(([key, label]) => <button key={key} type="button" className={view === key ? "active" : ""} onClick={() => setView(key)}>{label}</button>)}
+          <nav className="engineering-tabs" aria-label="工程视图" role="tablist">
+            {[['conversation','对话'],['plan','计划'],['changes','变更'],['terminal','终端']].map(([key, label]) => <button key={key} type="button" role="tab" aria-selected={view === key} className={view === key ? "active" : ""} onClick={() => setView(key)}>{label}</button>)}
           </nav>
           <div className="engineering-body">
             <div className="engineering-output" ref={outputRef} aria-live="polite">
               {view === "conversation" ? <>
                 {task?.prompt ? <div className="engineering-request"><span>任务</span><p>{task.prompt}</p></div> : null}
                 {task?.thought && isRunning ? <div className="engineering-thinking"><Loader2 className="spin" size={13} /><span>DeepSeek 正在分析与执行</span></div> : null}
-                {task?.output ? <pre>{task.output}</pre> : <div className="engineering-empty"><Wrench size={28} /><strong>工程代理待命</strong><span>用于创建、修改、检查文件和运行工程任务</span></div>}
+                {outputText ? <>{outputText.length > 50_000 ? <small className="engineering-truncated">仅显示最近 50,000 个字符</small> : null}<pre>{visibleOutput}</pre></> : <div className="engineering-empty"><Wrench size={28} /><strong>工程代理待命</strong><span>用于创建、修改、检查文件和运行工程任务</span></div>}
               </> : view === "plan" ? <div className="engineering-plan-view">{task?.plan?.length ? task.plan.map((step, i) => <div key={i}><b>{String(step.status || "pending").toUpperCase()}</b><span>{step.step || step.title || step.detail || String(step)}</span></div>) : <div className="engineering-empty"><ListTodo size={28} /><strong>等待 Agent 生成计划</strong><span>执行任务后，计划步骤会实时显示在这里</span></div>}</div>
                 : view === "changes" ? <div className="engineering-empty"><GitCompare size={28} /><strong>变更审阅</strong><span>{task?.output ? "请在任务输出中查看 Agent 汇总的文件变更；精确 diff 接入中" : "执行修改任务后，这里显示文件变更摘要"}</span></div>
                 : <div className="engineering-empty"><TerminalSquare size={28} /><strong>终端输出</strong><span>{task?.events?.length ? "命令执行事件已记录在右侧轨迹" : "Agent 运行命令后，终端事件会显示在右侧"}</span></div>}
@@ -775,15 +798,16 @@ function EngineeringConsole({ status, open, onClose, onRun, onCancel, onPermissi
             <div className="engineering-permission" role="alert">
               <ShieldCheck size={18} />
               <div><strong>{task.permission.title}</strong><span>{task.permission.kind || "此操作会修改系统状态，请确认是否仅允许本次执行。"}</span></div>
-              <button className="secondary" type="button" onClick={() => onPermission("reject")}>拒绝</button>
-              <button className="primary" type="button" onClick={() => onPermission("approve")}>仅允许本次</button>
+              <button className="secondary" type="button" disabled={answeringPermission} onClick={() => answerPermission("reject")}>拒绝</button>
+              <button className="primary" type="button" disabled={answeringPermission} onClick={() => answerPermission("approve")}>{answeringPermission ? <Loader2 className="spin" size={15} /> : null}仅允许本次</button>
             </div>
           ) : null}
 
           <form className="engineering-command" onSubmit={submit}>
-            <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="描述要工程代理完成的任务" rows={2} disabled={isRunning} />
+            <textarea value={prompt} maxLength={4000} onChange={(event) => setPrompt(event.target.value)} placeholder="描述要工程代理完成的任务" rows={2} disabled={isRunning} aria-describedby="engineering-prompt-count" />
+            <small id="engineering-prompt-count" className={cls("engineering-prompt-count", prompt.length >= 3600 && "warn")}>{prompt.length}/4000</small>
             {isRunning ? (
-              <button className="secondary engineering-stop" type="button" onClick={onCancel}><Square size={15} />停止</button>
+              <button className="secondary engineering-stop" type="button" disabled={cancelling} onClick={cancelTask}>{cancelling ? <Loader2 className="spin" size={15} /> : <Square size={15} />}停止</button>
             ) : (
               <button className="primary engineering-run" type="submit" disabled={!prompt.trim() || submitting || !status?.available}>
                 {submitting ? <Loader2 className="spin" size={15} /> : <Play size={15} />}执行
@@ -1407,7 +1431,7 @@ function SettingsDrawer({ open, onClose, activation, readiness, api, refreshAll 
   return (
     <AnimatePresence>
       {open ? (
-        <motion.div className="drawer-backdrop" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }} initial={false}>
+        <div className="drawer-backdrop" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
         <motion.aside
           ref={drawerRef}
           className="drawer"
@@ -1521,7 +1545,7 @@ function SettingsDrawer({ open, onClose, activation, readiness, api, refreshAll 
             {LINKS.filter((item) => item.path).map((item) => <ModuleLink key={item.path} item={item} api={api} />)}
           </nav>
         </motion.aside>
-        </motion.div>
+        </div>
       ) : null}
     </AnimatePresence>
   );

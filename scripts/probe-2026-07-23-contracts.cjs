@@ -17,7 +17,9 @@ const scripts = [
   'probe-minimum-window-contract.cjs',
   'probe-settings-visual-contract.cjs',
   'probe-compact-news-contract.cjs',
-  'probe-layout-render-readiness-contract.cjs'
+  'probe-layout-render-readiness-contract.cjs',
+  'probe-settings-scroll-flow-contract.cjs',
+  'probe-settings-capture-contract.cjs'
 ]
 
 const results = scripts.map((script) => {

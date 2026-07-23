@@ -1079,6 +1079,7 @@ async function runLayoutProbe() {
       const backdropCoversViewport = Boolean(backdropRect && backdropRect.left === 0 && backdropRect.top === 0 && backdropRect.right >= innerWidth && backdropRect.bottom >= innerHeight);
       const closeFocused = document.activeElement === drawer?.querySelector('[aria-label="关闭设置"]');
       const providerIsSelect = drawer?.querySelector('.field select')?.value === "deepseek";
+      document.body.offsetHeight;
       return {
         ready: Boolean(drawer), openerFound: Boolean(opener), controlsInside, backdropCoversViewport,
         drawerVisible: Boolean(drawerStyle && drawerStyle.visibility !== "hidden" && drawerStyle.display !== "none"),
@@ -1093,6 +1094,16 @@ async function runLayoutProbe() {
     })();
   `, true);
   await new Promise((resolve) => setTimeout(resolve, 220));
+  mainWindow.webContents.invalidate();
+  await mainWindow.webContents.executeJavaScript(`
+    (async () => {
+      document.body.offsetHeight;
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      return Boolean(document.querySelector('.drawer[role="dialog"]'));
+    })();
+  `, true);
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  const [settingsExpectedWidth, settingsExpectedHeight] = mainWindow.getContentSize();
   const settingsImage = await mainWindow.webContents.capturePage();
   const settingsScreenshot = path.join(outputDir, "jarvis-layout-settings.png");
   fs.writeFileSync(settingsScreenshot, settingsImage.toPNG());
@@ -1105,7 +1116,8 @@ async function runLayoutProbe() {
       return { drawerGone: !document.querySelector(".drawer"), focusRestored: document.activeElement?.classList.contains("module-link") || false };
     })();
   `, true);
-  snapshots.push({ id: "settings", requested: { width: 1380, height: 880 }, screenshot: settingsScreenshot, ok: Boolean(settings.ready && settings.openerFound && settings.drawerVisible && settings.drawerOpaque && settings.backdropVisible && settings.drawerHasDialogRole && settings.drawerIsModal && settings.drawerHasTitle && settings.drawerInViewport && settings.controlsInside && settings.backdropCoversViewport && settings.closeFocused && settings.providerIsSelect && settingsCloseResult.drawerGone && settingsCloseResult.focusRestored), ...settings, ...settingsCloseResult });
+  const settingsPixelsValid = settingsImage.getSize().width === settingsExpectedWidth && settingsImage.getSize().height === settingsExpectedHeight;
+  snapshots.push({ id: "settings", requested: { width: 1380, height: 880 }, screenshot: settingsScreenshot, ok: Boolean(settings.ready && settings.openerFound && settings.drawerVisible && settings.drawerOpaque && settings.backdropVisible && settings.drawerHasDialogRole && settings.drawerIsModal && settings.drawerHasTitle && settings.drawerInViewport && settings.controlsInside && settings.backdropCoversViewport && settings.closeFocused && settings.providerIsSelect && settingsCloseResult.drawerGone && settingsCloseResult.focusRestored && settingsPixelsValid), settingsPixelsValid, ...settings, ...settingsCloseResult });
 
   const firstRun = await mainWindow.webContents.executeJavaScript(`
     (async () => {

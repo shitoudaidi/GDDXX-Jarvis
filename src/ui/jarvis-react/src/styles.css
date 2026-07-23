@@ -4709,6 +4709,41 @@ aside.acui-result-layer[data-connected="true"] ~ .news-ticker {
   .app-shell.mode-active .news-ticker-item p { font-size: 10px; line-height: 1.4; }
   .app-shell.mode-active .news-ticker-meta { font-size: 8px; }
 }
+
+/* Round 18: settings content follows a natural scroll flow instead of compressed grid tracks. */
+.drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-padding-block: 76px 20px;
+  border-radius: 6px;
+}
+
+.drawer-head {
+  position: sticky;
+  top: -16px;
+  z-index: 3;
+  flex: 0 0 auto;
+  margin: -16px -16px 0;
+  padding: 16px;
+  border-bottom: 1px solid rgba(184, 220, 242, 0.14);
+  background: rgba(7, 11, 16, 0.98);
+}
+
+.drawer-section {
+  flex: 0 0 auto;
+  min-height: max-content;
+  border-radius: 4px;
+}
+
+.drawer .field input,
+.drawer .field select { border-radius: 4px; }
+
+.drawer .primary,
+.drawer .secondary { border-radius: 4px; }
 .terminal-cap-actions,
 .history-search {
   display: flex;

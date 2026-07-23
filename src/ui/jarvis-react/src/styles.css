@@ -4643,6 +4643,37 @@ aside.acui-result-layer[data-connected="true"] ~ .news-ticker {
   outline: 1px solid rgba(232, 183, 102, 0.72);
   outline-offset: 2px;
 }
+
+/* Round 12: restore a readable hierarchy after the compact cockpit pass. */
+.app-shell.mode-active .terminal-lines { padding-inline: 16px; }
+.app-shell.mode-active .terminal-line p { color: #d5e0e4; font-size: 14px; line-height: 1.62; }
+.app-shell.mode-active .terminal-line > .terminal-line-head > span,
+.app-shell.mode-active .message-channel,
+.app-shell.mode-active .terminal-line-head time { font-size: 10px; }
+.app-shell.mode-active .message-channel,
+.app-shell.mode-active .terminal-line-head time { color: #82969e; }
+.app-shell.mode-active .terminal-empty {
+  width: min(210px, calc(100% - 32px)); margin-inline: auto; padding: 18px 14px;
+  border: 1px solid rgba(85, 201, 232, 0.14); background: rgba(10, 22, 27, 0.42);
+}
+.app-shell.mode-active .command-dock.text-open .dock-input {
+  min-height: 54px; border: 1px solid rgba(85, 201, 232, 0.28);
+  border-radius: 3px; background: rgba(2, 9, 12, 0.78);
+}
+.app-shell.mode-active .command-dock.text-open .dock-input:focus-within {
+  border-color: rgba(85, 201, 232, 0.72); box-shadow: inset 3px 0 #55c9e8;
+}
+.app-shell.mode-active .command-dock .keyboard-command,
+.app-shell.mode-active .command-dock .replay,
+.app-shell.mode-active .command-dock .music-command { color: #92a6ae; background: rgba(7, 15, 19, 0.68); }
+.app-shell.mode-active .command-dock .voice-command {
+  border-width: 2px;
+  box-shadow: inset 0 0 18px rgba(85, 201, 232, 0.16), 0 0 22px rgba(85, 201, 232, 0.12);
+}
+.app-shell.mode-active .news-ticker-item { padding-block: 12px; }
+.app-shell.mode-active .news-ticker-item p { color: #ccd8dc; font-size: 12px; line-height: 1.5; }
+.app-shell.mode-active .news-ticker-meta span,
+.app-shell.mode-active .news-external { color: #82969e; }
 .terminal-cap-actions,
 .history-search {
   display: flex;

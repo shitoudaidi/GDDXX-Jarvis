@@ -79,6 +79,7 @@
     "probe:tts-continuity-contract": "node scripts/probe-tts-continuity-contract.cjs",
     "probe:reduced-motion-contract": "node scripts/probe-reduced-motion-contract.cjs",
     "probe:message-surface-contract": "node scripts/probe-message-surface-contract.cjs",
+    "probe:visual-hierarchy-contract": "node scripts/probe-visual-hierarchy-contract.cjs",
     "probe:tts-repeat": "node scripts/probe-tts-repeat.cjs",
     "rebuild:native": "node ./node_modules/electron-builder/cli.js install-app-deps",
     "rebuild:web": "npm rebuild better-sqlite3",

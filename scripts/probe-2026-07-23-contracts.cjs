@@ -16,7 +16,8 @@ const scripts = [
   'probe-turn-cleanup-contract.cjs',
   'probe-minimum-window-contract.cjs',
   'probe-settings-visual-contract.cjs',
-  'probe-compact-news-contract.cjs'
+  'probe-compact-news-contract.cjs',
+  'probe-layout-render-readiness-contract.cjs'
 ]
 
 const results = scripts.map((script) => {

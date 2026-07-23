@@ -84,6 +84,7 @@
     "probe:minimum-window-contract": "node scripts/probe-minimum-window-contract.cjs",
     "probe:settings-visual-contract": "node scripts/probe-settings-visual-contract.cjs",
     "probe:compact-news-contract": "node scripts/probe-compact-news-contract.cjs",
+    "probe:layout-render-readiness-contract": "node scripts/probe-layout-render-readiness-contract.cjs",
     "probe:tts-repeat": "node scripts/probe-tts-repeat.cjs",
     "rebuild:native": "node ./node_modules/electron-builder/cli.js install-app-deps",
     "rebuild:web": "npm rebuild better-sqlite3",

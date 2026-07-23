@@ -939,6 +939,33 @@ async function runLayoutProbe() {
     mainWindow.setSize(viewport.width, viewport.height, false);
     mainWindow.center();
     await new Promise((resolve) => setTimeout(resolve, 450));
+    const renderReady = await mainWindow.webContents.executeJavaScript(`
+      (async () => {
+        const startedAt = performance.now();
+        let state = null;
+        while (performance.now() - startedAt < 5000) {
+          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          const stage = document.querySelector(".monitor-stage");
+          const news = document.querySelector(".news-ticker");
+          const style = news ? getComputedStyle(news) : null;
+          state = {
+            stageActive: Boolean(stage?.classList.contains("mode-active")),
+            newsPresent: Boolean(news),
+            newsDisplayed: Boolean(style && style.display !== "none"),
+            newsVisible: Boolean(style && style.visibility !== "hidden"),
+            newsOpaque: Boolean(style && Number(style.opacity) >= 0.95),
+            newsSharp: Boolean(style && (style.filter === "none" || style.filter === "blur(0px)")),
+            newsSettled: Boolean(style && (style.transform === "none" || style.transform === "matrix(1, 0, 0, 1, 0, 0)")),
+            newsLoaded: news?.getAttribute("aria-busy") !== "true",
+            newsHasHeader: Boolean(news?.querySelector(".news-ticker-head")),
+            newsHasContent: Boolean(news?.querySelector(".news-ticker-item, .news-ticker-empty")),
+          };
+          if (Object.values(state).every(Boolean)) return { ok: true, waitedMs: Math.round(performance.now() - startedAt), ...state };
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        return { ok: false, waitedMs: Math.round(performance.now() - startedAt), ...(state || {}) };
+      })();
+    `, true);
     const snapshot = await mainWindow.webContents.executeJavaScript(`
       (() => {
         const selectors = {
@@ -997,19 +1024,35 @@ async function runLayoutProbe() {
         const statusDetailsAccessible = [...document.querySelectorAll(".status-pill")].every((item) => Boolean(item.title));
         const vortex = document.querySelector(".entity-vortex");
         const minimumEntityScaled = innerWidth >= 1180 || (vortex && getComputedStyle(vortex).transform !== "none");
+        const newsElement = document.querySelector(".news-ticker");
+        const newsStyle = newsElement ? getComputedStyle(newsElement) : null;
+        const newsParentStyle = newsElement?.parentElement ? getComputedStyle(newsElement.parentElement) : null;
+        const newsVisualState = {
+          display: newsStyle?.display || "missing",
+          opacity: newsStyle?.opacity || "missing",
+          visibility: newsStyle?.visibility || "missing",
+          filter: newsStyle?.filter || "missing",
+          transform: newsStyle?.transform || "missing",
+          zIndex: newsStyle?.zIndex || "missing",
+          parentOverflow: newsParentStyle?.overflow || "missing",
+          titleVisible: Boolean(newsElement?.querySelector(".news-ticker-head")),
+          itemCount: newsElement?.querySelectorAll(".news-ticker-item").length || 0,
+          busy: newsElement?.getAttribute("aria-busy") || "false",
+        };
         return {
           ok: overlaps.length === 0 && outside.length === 0 && overflow.length === 0 && dockChildrenOutside.length === 0
             && controlsCentered && duplicatedTelemetryHidden && statusDetailsAccessible && minimumEntityScaled,
           viewport: { width: innerWidth, height: innerHeight, devicePixelRatio },
           rects, overlaps, outside, overflow, dockChildrenOutside,
           visualHierarchy: { controlsCentered, duplicatedTelemetryHidden, statusDetailsAccessible, minimumEntityScaled },
+          newsVisualState,
         };
       })();
     `, true);
     const image = await mainWindow.webContents.capturePage();
     const screenshot = path.join(outputDir, `jarvis-layout-${viewport.id}.png`);
     fs.writeFileSync(screenshot, image.toPNG());
-    snapshots.push({ id: viewport.id, requested: viewport, screenshot, ...snapshot });
+    snapshots.push({ id: viewport.id, requested: viewport, screenshot, ...snapshot, renderReady, ok: Boolean(snapshot.ok && renderReady.ok) });
   }
 
   mainWindow.setSize(1380, 880, false);

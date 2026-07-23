@@ -15,6 +15,7 @@ const checks = {
   renderedKeysAreUnique: /key=\{`\$\{item\.id\}-\$\{visibleIndex\}`\}/.test(ui),
   reducedMotionIsRespected: /useReducedMotion\(\)/.test(ui) && /initial=\{reduceMotion \? false/.test(ui),
 };
+checks.emptyErrorCanRetry = /error \? <button type="button" onClick=\{load\}(?: disabled=\{loading\})?/.test(ui);
 const failed = Object.entries(checks).filter(([, ok]) => !ok).map(([name]) => name);
 console.log(JSON.stringify({ ok: failed.length === 0, checks, failed }, null, 2));
 if (failed.length) process.exit(1);

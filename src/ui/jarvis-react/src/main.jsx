@@ -315,6 +315,10 @@ function boundedFeedback(value, fallback) {
   return String(value || fallback).replace(/\s+/g, " ").trim().slice(0, 180);
 }
 
+function localSystemMessage(content, channel = "LOCAL") {
+  return { id: `${channel.toLowerCase()}-${Date.now()}-${Math.random().toString(16).slice(2)}`, role: "system", content: boundedFeedback(content, "操作已完成"), channel, timestamp: new Date().toISOString() };
+}
+
 function stateLabel(state) {
   if (state === "thinking") return "思考";
   if (state === "listening") return "聆听";
@@ -1951,6 +1955,7 @@ function App() {
   const sendMessageRef = useRef(null);
   const pollRef = useRef(null);
   const pollInFlightRef = useRef(false);
+  const pollFailureRef = useRef(0);
   const reloadTimerRef = useRef(null);
   const refreshInFlightRef = useRef(null);
   const maxMessageIdRef = useRef(0);
@@ -2581,7 +2586,7 @@ function App() {
         } catch (error) {
           if (finished) return;
           console.error("Jarvis TTS playback failed", error);
-          setLastError("贾维斯语音播放失败，请检查本地 Piper 模型。");
+          setLastError(boundedFeedback(error?.message, "贾维斯语音播放失败，请检查本地 Piper 模型"));
           finish(false);
         }
       })();
@@ -2593,6 +2598,7 @@ function App() {
     if (pollRef.current) window.clearInterval(pollRef.current);
     pollRef.current = null;
     pollInFlightRef.current = false;
+    pollFailureRef.current = 0;
   }, []);
 
   const completeReply = useCallback((text, options = {}) => {
@@ -2655,7 +2661,7 @@ function App() {
         body: JSON.stringify({ turn_id: turn.token })
       });
     } catch (error) {
-      setLastError(`界面已停止，但核心取消未确认：${error.message || "连接失败"}`);
+      setLastError(boundedFeedback(`界面已停止，但核心取消未确认：${error.message || "连接失败"}`, "界面已停止，但核心取消未确认"));
     }
     window.requestAnimationFrame(() => inputRef.current?.focus());
     return true;
@@ -2683,7 +2689,8 @@ function App() {
           failActiveTurn("这轮对话超过 95 秒没有返回，原输入已保留，可直接重试。", turnToken);
         }
       } catch {
-        // transient startup or reload failures should not stop polling
+        pollFailureRef.current += 1;
+        if (pollFailureRef.current >= 3) setLastError("暂时无法读取回复，仍在继续等待核心服务");
       } finally {
         pollInFlightRef.current = false;
       }
@@ -2702,13 +2709,13 @@ function App() {
 
     if (/(关闭|停止|关掉|静音).{0,4}(音乐|背景音乐)|\b(?:stop|mute|turn off)\s+(?:the\s+)?music\b/i.test(content)) {
       await toggleAmbientMusic(false);
-      setMessages((current) => [...current, { id: `music-${Date.now()}`, role: "system", content: "背景音乐已关闭。", channel: "LOCAL" }]);
+      setMessages((current) => [...current, localSystemMessage("背景音乐已关闭。", "LOCAL")]);
       if (fromVoice) try { window.jarvisVoice?.stop?.(); } catch {}
       return;
     }
     if (/(打开|开启|播放).{0,4}(音乐|背景音乐)|\b(?:start|play|turn on)\s+(?:the\s+)?music\b/i.test(content)) {
       const started = await toggleAmbientMusic(true);
-      setMessages((current) => [...current, { id: `music-${Date.now()}`, role: "system", content: started ? "背景音乐已开启。" : "背景音乐等待首次交互后开启。", channel: "LOCAL" }]);
+      setMessages((current) => [...current, localSystemMessage(started ? "背景音乐已开启。" : "背景音乐等待首次交互后开启。", "LOCAL")]);
       return;
     }
 
@@ -2755,12 +2762,7 @@ function App() {
       }]);
       try {
         await startEngineeringTask(workPrompt);
-        setMessages((current) => [...current, {
-          id: `engineering-accepted-${Date.now()}`,
-          role: "system",
-          content: "工程任务已交给 Grok Build，执行模型为 DeepSeek V4 Pro。",
-          channel: "GROK BUILD"
-        }]);
+        setMessages((current) => [...current, localSystemMessage("工程任务已交给 Grok Build，执行模型为 DeepSeek V4 Pro。", "GROK BUILD")]);
         setVisualState("idle");
         if (fromVoice) {
           await speakReplyRef.current?.("Engineering task accepted.\n\n[中文翻译]\n工程任务已接收。");
@@ -2768,7 +2770,7 @@ function App() {
         }
       } catch (error) {
         setVisualState("alert");
-        setLastError(error.message || "工程任务提交失败");
+        setLastError(boundedFeedback(error.message, "工程任务提交失败"));
         if (fromVoice) schedulePostReplyListen();
       }
       return;
@@ -2819,7 +2821,7 @@ function App() {
       failActiveTurn(`${error.message || "发送失败"}。原输入已保留，可直接重试。`, turnToken);
       setMessages((current) => [
         ...current,
-        { id: `error-${Date.now()}`, role: "system", content: error.message || "发送失败", channel: "SYSTEM" }
+        localSystemMessage(boundedFeedback(error.message, "发送失败"), "SYSTEM")
       ]);
       refreshAll().catch(() => {});
     }
@@ -2990,8 +2992,9 @@ function App() {
     refreshAll()
       .then(() => loadConversations())
       .catch((error) => {
-        setConnection({ state: "degraded", detail: error.message || "核心服务未响应" });
-        setLastError(error.message || "核心服务未响应");
+        const feedback = boundedFeedback(error.message, "核心服务未响应");
+        setConnection({ state: "degraded", detail: feedback });
+        setLastError(feedback);
       });
     connectEvents();
     return () => {

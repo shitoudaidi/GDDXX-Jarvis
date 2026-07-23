@@ -1096,46 +1096,46 @@ function FirstRunSetup({ api, onComplete }) {
 
   return (
     <section className="first-run-setup" aria-labelledby="first-run-title">
-      <form className="first-run-form" onSubmit={submit} aria-busy={saving}>
+      <form className="first-run-form" onSubmit={submit} aria-busy={saving} aria-describedby="first-run-description">
         <header>
           <span>GDDXX-JARVIS</span>
           <h2 id="first-run-title">初始化</h2>
-          <p>完成核心配置后进入工作台</p>
+          <p id="first-run-description">完成核心配置后进入工作台</p>
         </header>
 
         <fieldset className="first-run-section" disabled={saving}>
           <legend>模型服务</legend>
           <label className="field">
             <span>服务商</span>
-            <select value={provider} onChange={(event) => changeModelProvider(event.target.value)}>
+            <select name="provider" value={provider} onChange={(event) => changeModelProvider(event.target.value)}>
               <option value="deepseek">DeepSeek</option>
               <option value="custom">兼容 OpenAI 的自定义服务</option>
             </select>
           </label>
           <label className="field">
             <span>模型名称</span>
-            <input ref={modelRef} value={model} onChange={(event) => setModel(event.target.value)} placeholder="deepseek-chat" required />
+            <input ref={modelRef} name="model" autoComplete="off" value={model} onChange={(event) => setModel(event.target.value)} placeholder="deepseek-chat" required aria-required="true" />
           </label>
           <label className="field">
             <span>API Key</span>
-            <span className="secret-field"><input ref={apiKeyRef} type={showModelKey ? "text" : "password"} autoComplete="new-password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="sk-..." required /><button type="button" onClick={() => setShowModelKey((value) => !value)} aria-label={showModelKey ? "隐藏模型 API Key" : "显示模型 API Key"} title={showModelKey ? "隐藏密钥" : "显示密钥"}>{showModelKey ? <EyeOff size={15} /> : <Eye size={15} />}</button></span>
+              <span className="secret-field"><input ref={apiKeyRef} name="apiKey" type={showModelKey ? "text" : "password"} autoComplete="new-password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="sk-..." required aria-required="true" /><button type="button" onClick={() => setShowModelKey((value) => !value)} aria-label={showModelKey ? "隐藏模型 API Key" : "显示模型 API Key"} title={showModelKey ? "隐藏密钥" : "显示密钥"}>{showModelKey ? <EyeOff size={15} /> : <Eye size={15} />}</button></span>
           </label>
           {provider === "custom" ? (
             <label className="field">
               <span>Base URL</span>
-              <input ref={baseURLRef} type="url" value={baseURL} onChange={(event) => setBaseURL(event.target.value)} placeholder="https://.../v1" required />
+              <input ref={baseURLRef} name="baseURL" type="url" inputMode="url" autoComplete="url" value={baseURL} onChange={(event) => setBaseURL(event.target.value)} placeholder="https://.../v1" required aria-required="true" />
             </label>
           ) : null}
         </fieldset>
 
         <fieldset className="first-run-section voice-choice" disabled={saving}>
-          <legend>语音识别</legend>
+          <legend id="voice-provider-legend">语音识别</legend>
           <label className={cls("voice-option", voiceProvider === "local" && "selected")}>
-            <input type="radio" name="voice-provider" value="local" checked={voiceProvider === "local"} onChange={() => changeVoiceProvider("local")} />
+            <input type="radio" name="voice-provider" value="local" checked={voiceProvider === "local"} onChange={() => changeVoiceProvider("local")} aria-describedby="voice-provider-legend" />
             <span><strong>本地</strong><small>语音在电脑上处理，安装包已包含识别模型</small></span>
           </label>
           <label className={cls("voice-option", voiceProvider === "aliyun" && "selected")}>
-            <input type="radio" name="voice-provider" value="aliyun" checked={voiceProvider === "aliyun"} onChange={() => changeVoiceProvider("aliyun")} />
+            <input type="radio" name="voice-provider" value="aliyun" checked={voiceProvider === "aliyun"} onChange={() => changeVoiceProvider("aliyun")} aria-describedby="voice-provider-legend" />
             <span><strong>阿里云</strong><small>使用 DashScope 实时语音识别</small></span>
           </label>
           {voiceProvider === "aliyun" ? (

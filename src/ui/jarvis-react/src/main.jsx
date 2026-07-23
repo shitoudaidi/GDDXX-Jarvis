@@ -598,13 +598,14 @@ function JarvisWorkbench({ visualState, interfaceMode, readiness, status, activa
 function MessageLine({ message, live }) {
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
+  const reduceMotion = useReducedMotion();
   const bilingual = !isUser && !isSystem ? splitBilingualReply(message.content) : null;
   return (
     <motion.article
       className={cls("message-line", isUser && "user", isSystem && "system", live && "live")}
-      initial={{ opacity: 0, y: 8 }}
+      initial={reduceMotion ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
+      transition={{ duration: reduceMotion ? 0 : 0.18, ease: [0.2, 0, 0, 1] }}
     >
       <div className="message-origin">
         <span>{isUser ? "你" : isSystem ? "系统" : "Jarvis"}</span>
@@ -1848,6 +1849,7 @@ function AcuiStatusCard({ component, props }) {
 }
 
 function AcuiResultCard({ card, onDismiss }) {
+  const reduceMotion = useReducedMotion();
   useEffect(() => {
     const lifetime = card.component === "WeatherCard" ? 15_000 : 30_000;
     const timer = window.setTimeout(() => onDismiss(card.id, "auto-timeout"), lifetime);
@@ -1858,11 +1860,11 @@ function AcuiResultCard({ card, onDismiss }) {
   return (
     <motion.article
       className="acui-result-card"
-      layout
-      initial={{ opacity: 0, x: 24, scale: 0.97 }}
+      layout={!reduceMotion}
+      initial={reduceMotion ? false : { opacity: 0, x: 24, scale: 0.97 }}
       animate={{ opacity: 1, x: 0, scale: 1 }}
-      exit={{ opacity: 0, x: 24, scale: 0.97 }}
-      transition={{ duration: 0.24 }}
+      exit={reduceMotion ? undefined : { opacity: 0, x: 24, scale: 0.97 }}
+      transition={{ duration: reduceMotion ? 0 : 0.24 }}
       aria-label={`${card.component} result`}
     >
       <header>

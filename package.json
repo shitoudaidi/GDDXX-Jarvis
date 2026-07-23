@@ -81,6 +81,7 @@
     "probe:message-surface-contract": "node scripts/probe-message-surface-contract.cjs",
     "probe:visual-hierarchy-contract": "node scripts/probe-visual-hierarchy-contract.cjs",
     "probe:turn-cleanup-contract": "node scripts/probe-turn-cleanup-contract.cjs",
+    "probe:minimum-window-contract": "node scripts/probe-minimum-window-contract.cjs",
     "probe:tts-repeat": "node scripts/probe-tts-repeat.cjs",
     "rebuild:native": "node ./node_modules/electron-builder/cli.js install-app-deps",
     "rebuild:web": "npm rebuild better-sqlite3",

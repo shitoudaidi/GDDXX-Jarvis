@@ -4674,6 +4674,28 @@ aside.acui-result-layer[data-connected="true"] ~ .news-ticker {
 .app-shell.mode-active .news-ticker-item p { color: #ccd8dc; font-size: 12px; line-height: 1.5; }
 .app-shell.mode-active .news-ticker-meta span,
 .app-shell.mode-active .news-external { color: #82969e; }
+
+/* Round 14: keep the cockpit usable at the supported minimum window. */
+@media (max-width: 1100px) {
+  .app-shell.mode-active .studio-header { grid-template-columns: 205px minmax(285px, 1fr) auto; padding-inline: 12px; }
+  .app-shell.mode-active .header-brand { gap: 10px; }
+  .app-shell.mode-active .brand-title h1 { font-size: 21px; }
+  .app-shell.mode-active .header-clock { padding-left: 10px; }
+  .app-shell.mode-active .header-clock span { display: none; }
+  .app-shell.mode-active .status-pill { justify-content: center; padding-inline: 8px; }
+  .app-shell.mode-active .terminal-cap > div { max-width: 132px; }
+  .app-shell.mode-active .turn-owner { max-width: 76px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .app-shell.mode-active .capability-status { flex: 0 0 auto; }
+  .app-shell.mode-active .agent-portrait,
+  .monitor-stage.mode-active .agent-portrait { top: 48%; height: 360px; min-height: 360px; }
+}
+
+@media (max-width: 1100px) and (max-height: 720px) {
+  .app-shell.mode-active .rail-heading { min-height: 38px; }
+  .app-shell.mode-active .signal-tile { min-height: 40px; }
+  .app-shell.mode-active .engineering-summary-body { gap: 5px; padding-block: 9px; }
+  .app-shell.mode-active .agent-portrait .entity-vortex { transform: scale(0.72); }
+}
 .terminal-cap-actions,
 .history-search {
   display: flex;

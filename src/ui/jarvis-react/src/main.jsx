@@ -1351,7 +1351,7 @@ function SettingsDrawer({ open, onClose, activation, readiness, api, refreshAll 
       .catch((error) => setAiHotFeedback({ text: boundedFeedback(error.message, "无法读取 AI HOT 配置"), type: "error" }));
     const previousFocus = document.activeElement;
     const onKeyDown = (event) => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !saving && !aiHotSaving) {
         event.preventDefault();
         onClose();
         return;
@@ -1482,7 +1482,7 @@ function SettingsDrawer({ open, onClose, activation, readiness, api, refreshAll 
   return (
     <React.Fragment>
       {open ? (
-        <div className="drawer-backdrop" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+        <div className="drawer-backdrop" onClick={(event) => { if (event.target === event.currentTarget && !saving && !aiHotSaving) onClose(); }}>
         <motion.aside
           ref={drawerRef}
           className="drawer"
@@ -1499,16 +1499,16 @@ function SettingsDrawer({ open, onClose, activation, readiness, api, refreshAll 
               <span>Settings</span>
               <strong id="settings-drawer-title">模型与能力</strong>
             </div>
-            <button ref={closeButtonRef} className="icon-btn" type="button" onClick={onClose} aria-label="关闭设置" title="关闭设置">
+            <button ref={closeButtonRef} className="icon-btn" type="button" onClick={onClose} disabled={saving || aiHotSaving} aria-label="关闭设置" title="关闭设置">
               <X size={18} />
             </button>
           </div>
 
-          <form className="drawer-section" onSubmit={(event) => { event.preventDefault(); saveModel(); }}>
+          <form className="drawer-section" onSubmit={(event) => { event.preventDefault(); saveModel(); }} aria-label="模型配置" aria-busy={saving}>
             <StatusPill ok={!!activation?.activated} label="DeepSeek" detail={activation?.activated ? activation.model || activation.provider : "未激活"} />
             <label className="field">
               <span>Provider</span>
-              <select value={provider} onChange={(event) => setProvider(event.target.value)}>
+              <select name="provider" value={provider} onChange={(event) => setProvider(event.target.value)}>
                 <option value="deepseek">DeepSeek</option>
                 <option value="custom">兼容 OpenAI 的自定义服务</option>
                 {!['deepseek', 'custom'].includes(provider) ? <option value={provider}>{provider}</option> : null}
@@ -1516,7 +1516,7 @@ function SettingsDrawer({ open, onClose, activation, readiness, api, refreshAll 
             </label>
             <label className="field">
               <span>Model</span>
-              <select value={model} onChange={(event) => setModel(event.target.value)}>
+              <select name="model" value={model} onChange={(event) => setModel(event.target.value)}>
                 {(activation?.models || [{ id: model, label: model }]).map((item) => (
                   <option key={item.id} value={item.id}>{item.label || item.id}</option>
                 ))}
@@ -1540,7 +1540,7 @@ function SettingsDrawer({ open, onClose, activation, readiness, api, refreshAll 
             </label>
             <label className="field">
               <span>Base URL</span>
-              <input type="url" value={baseURL} onChange={(event) => setBaseURL(event.target.value)} placeholder="默认可留空" />
+              <input name="baseURL" type="url" inputMode="url" autoComplete="url" value={baseURL} onChange={(event) => setBaseURL(event.target.value)} placeholder="默认可留空" />
             </label>
             <button className="primary wide" disabled={saving || !provider.trim() || !model.trim()} aria-busy={saving} type="submit">
               {saving ? <Loader2 className="spin" size={16} /> : <KeyRound size={16} />}
@@ -1560,15 +1560,16 @@ function SettingsDrawer({ open, onClose, activation, readiness, api, refreshAll 
             <StatusPill compact ok={!!caps.memory?.ready} label="Memory" detail={caps.memory ? `${caps.memory.count || 0}` : ""} />
           </div>
 
-          <div className="drawer-section">
+          <div className="drawer-section" role="region" aria-label="AI HOT 配置">
             <StatusPill ok label="AI HOT 资讯" detail={aiHotKeyConfigured ? "自定义密钥已配置" : "官方公开接口 · 免 API Key"} />
             <label className="field">
               <span>资讯接口地址</span>
-              <input type="url" value={aiHotEndpoint} onChange={(event) => setAiHotEndpoint(event.target.value)} />
+              <input name="aiHotEndpoint" type="url" inputMode="url" autoComplete="url" value={aiHotEndpoint} onChange={(event) => setAiHotEndpoint(event.target.value)} />
             </label>
             <label className="field">
               <span>API Key（可选）</span>
               <input
+                name="aiHotApiKey"
                 type="password"
                 autoComplete="new-password"
                 spellCheck="false"

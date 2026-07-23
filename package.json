@@ -74,6 +74,7 @@
     "probe:news-surface-continuity-contract": "node scripts/probe-news-surface-continuity-contract.cjs",
     "probe:first-run-form-contract": "node scripts/probe-first-run-form-contract.cjs",
     "probe:engineering-continuity-contract": "node scripts/probe-engineering-continuity-contract.cjs",
+    "probe:settings-continuity-contract": "node scripts/probe-settings-continuity-contract.cjs",
     "probe:tts-repeat": "node scripts/probe-tts-repeat.cjs",
     "rebuild:native": "node ./node_modules/electron-builder/cli.js install-app-deps",
     "rebuild:web": "npm rebuild better-sqlite3",

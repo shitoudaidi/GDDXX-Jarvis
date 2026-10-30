@@ -9,7 +9,7 @@ body[data-live="1"] #voiceMeter{display:flex}
 #listenToggle{position:fixed;left:50%;top:70px;transform:translateX(-50%);z-index:1000;display:none;align-items:center;gap:7px;height:30px;padding:0 12px 0 9px;border-radius:15px;border:1px solid rgba(var(--sk-pri),.45);background:rgba(var(--sk-wbg),.55);color:rgb(var(--sk-pri));font:11px/1 'Saira',system-ui,sans-serif;letter-spacing:.08em;cursor:pointer;opacity:.55;transition:opacity .25s,background .25s,border-color .25s,color .25s}
 #listenToggle:hover,#listenToggle:focus-visible{opacity:1}
 #listenToggle svg{width:15px;height:15px}
-body[data-live="1"] #listenToggle{display:flex}
+body[data-live="1"][data-listen] #listenToggle{display:flex}
 body.muted #listenToggle{opacity:1;color:var(--amber);border-color:var(--amber);background:rgba(0,0,0,.6);box-shadow:0 0 14px rgba(255,170,60,.25)}
 body.muted .mic,body.muted #btnMic{color:var(--amber);border-color:var(--amber)}
 body.muted #voiceMeter .mbar{opacity:.3}

@@ -16,7 +16,7 @@ function connectVoice() {
       const s = m.state === 'listening' ? 'listening' : m.state === 'thinking' ? 'thinking' : m.state === 'speaking' ? 'speaking' : 'idle';
       setState(s);
       if (s === 'listening' && !sub.textContent.trim()) sub.innerHTML = '<span class="who you">YOU</span><span style="color:var(--ink-3)">正在聆听…</span>';
-      if (s === 'idle') stateText.textContent = '待命中 · 说 "Hey Jarvis"';
+      if (s === 'idle') stateText.textContent = listening ? '待命中 · 说 "Hey Jarvis"' : '已暂停聆听 · 可以打字';
     }
     else if (m.type === 'screen') { if (m.mode === 'awake') { dormHold = false; dormAsked = false; wakeUI(); sleepUI(30000); } else if (state === 'speaking' || state === 'thinking') dormAsked = true; else dormNow(); }
     else if (m.type === 'wake') { dormHold = false; wakeUI(); clearInterval(typeTimer); openTalk(); sub.innerHTML = '<span class="who you">YOU</span><span style="color:var(--ink-3)">正在聆听…</span>'; }
@@ -42,6 +42,7 @@ function connectVoice() {
     else if (m.type === 'hand_frame') handFrame(m);
     else if (m.type === 'heard') { meterHeard.textContent = '听到：' + (m.text || '…'); }
     else if (m.type === 'rejected') { meterHeard.textContent += '（不是唤醒词）'; }
+    else if (m.type === 'listen') listenShow(m.on !== false);
     else if (m.type === 'mic') { meterHeard.textContent = m.ok ? '' : m.text; meterHeard.classList.toggle('warn', !m.ok); }
     else if (m.type === 'agents') agentsUpdate(m);
     else if (m.type === 'llm') { if (m.name) window.JV_NAME = m.name === 'sir' ? '' : m.name; if (window.ONBOARD) ONBOARD.msg(m); }
@@ -66,6 +67,34 @@ const demoHandle = handle;
 handle = q => { q = q.trim(); if (!q) return; if (liveSend({ type: 'text', text: q })) { openTalk(); typeOut('you', q, 12); } else demoHandle(q); };
 addEventListener('keydown', e => { if (e.key === 'Escape') liveSend({ type: 'interrupt' }); }, true);
 const demoStart = startListen, demoStop = stopListen;
+/* 暂停聆听: one button (and the M key) stops Jarvis hearing anything, wake word included, until it is
+   pressed again. For live streams and meetings where other people talk. Typing still works. */
+const listenBtn = document.createElement('button');
+listenBtn.id = 'listenToggle'; listenBtn.type = 'button';
+document.body.appendChild(listenBtn);
+let listening = true;
+function listenShow(on) {
+  listening = on;
+  document.body.classList.toggle('muted', !on);
+  listenBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path>' + (on ? '' : '<path d="M4 4l16 16"></path>') + '</svg><span>' + (on ? '聆听中' : '已暂停聆听') + '</span>';
+  listenBtn.title = on ? '点一下（或按 M）暂停聆听：贾维斯不再听任何声音' : '点一下（或按 M）恢复聆听';
+  listenBtn.setAttribute('aria-pressed', String(!on));
+  ['#mic', '#btnMic'].forEach(q => { const b = document.querySelector(q); if (b) b.setAttribute('aria-label', on ? '暂停聆听' : '恢复聆听'); });
+  meterHeard.classList.remove('warn');
+  meterHeard.textContent = on ? '' : '已暂停聆听，再按一次恢复';
+  if (state === 'idle') stateText.textContent = on ? '待命中 · 说 "Hey Jarvis"' : '已暂停聆听 · 可以打字';
+  if (!on) micBar.style.width = wakeBar.style.width = '0%';
+}
+function listenToggle() { liveSend({ type: 'listen', on: !listening }); }
+window.listenToggle = listenToggle;
+listenBtn.addEventListener('click', e => { e.stopPropagation(); listenToggle(); });
+addEventListener('keydown', e => {
+  const t = document.activeElement;
+  if ((e.key === 'm' || e.key === 'M') && !e.metaKey && !e.ctrlKey && !e.altKey && !e.repeat && live
+      && !(t && (/INPUT|TEXTAREA|SELECT/.test(t.tagName) || t.isContentEditable))) { e.preventDefault(); listenToggle(); }
+});
+listenShow(true);
 startListen = () => { if (!live) return demoStart(); openTalk(); clearInterval(typeTimer); sub.innerHTML = '<span class="who">JARVIS</span>直接说 “Hey Jarvis”，我一直在听。'; };
+['#mic', '#btnMic'].forEach(q => { const b = document.querySelector(q); if (b) b.addEventListener('click', e => { if (live) { e.stopImmediatePropagation(); listenToggle(); } }, true); });
 stopListen = () => { if (!live) demoStop(); };
 connectVoice();

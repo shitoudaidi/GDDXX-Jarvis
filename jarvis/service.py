@@ -598,6 +598,11 @@ class Service:
                         gesture.TRACKER.set(bool(msg.get("on")))
                     elif msg.get("type", "").startswith("earth_"):   # the 地球此刻 wall: fetch feeds, track a flight, opened/closed
                         threading.Thread(target=self.earth_msg, args=(msg,), daemon=True).start()
+                    elif msg.get("type", "").startswith("em_"):      # 流浪地球计划: optional download, status, opened/closed
+                        from . import tools
+                        em = tools.plugin("earth_migration")
+                        if em:
+                            threading.Thread(target=em.msg, args=(msg,), daemon=True).start()
                     elif msg.get("type") == "listen":        # 暂停聆听 / 恢复聆听
                         self.set_listening(bool(msg.get("on")))
                     elif msg.get("type") == "holo_list":     # the 3D 拆解 library asks what is stored

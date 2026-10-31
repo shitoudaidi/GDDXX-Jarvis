@@ -65,7 +65,7 @@ function frame() {
   demoFrame();
   if (SK.core) SK.core.frame(dt);   /* skins: a skin's own centrepiece */
   /* earth wall fully up: the dimmed core behind it only needs every other frame (two WebGL scenes at full rate stutter) */
-  if (!(EW && EW.live() && EW.state.appear >= 1 && (frameOdd = !frameOdd))) composer.render();
+  if (!window.EM_ON && !(EW && EW.live() && EW.state.appear >= 1 && (frameOdd = !frameOdd))) composer.render();   // idle under the 流浪地球 film
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

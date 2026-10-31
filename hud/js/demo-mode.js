@@ -12,10 +12,11 @@ function demoExit() {
   try { if (SHIP && SHIP.state.on) SHIP.hide(); } catch (_) {}
   try { if (RD && RD.state.on) RD.hide(); } catch (_) {}
   try { if (OP && OP.state.on) OP.hide(); } catch (_) {}
+  try { if (EW) EW.hide(); } catch (_) {}
 }
 demoBack.addEventListener('click', demoExit);
 addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('demo')) demoExit(); });
-function demoLive() { return !!((MACH.on && MACH.mesh) || HOLO.on || (SHIP && SHIP.state.on && !SHIP.state.ending) || (RD && RD.state.on && !RD.state.ending) || (OP && OP.state.on && !OP.state.ending)); }
+function demoLive() { return !!((MACH.on && MACH.mesh) || HOLO.on || (SHIP && SHIP.state.on && !SHIP.state.ending) || (RD && RD.state.on && !RD.state.ending) || (OP && OP.state.on && !OP.state.ending) || (EW && EW.live())); }
 const GOV = { last: 0, ema: 16, slow: 0, good: 0, lv: 0, levels: [DPR, Math.min(DPR, 1.5), Math.min(DPR, 1.25), 1], stalls: [] };
 function govSet(lv) {
   GOV.lv = lv; GOV.slow = GOV.good = 0;

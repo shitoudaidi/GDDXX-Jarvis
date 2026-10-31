@@ -61,9 +61,11 @@ function frame() {
   if (SHIP) SHIP.frame(dt, w, h);
   if (RD) RD.frame(dt, w, h);
   if (OP) OP.frame(dt, w, h);
+  if (EW) EW.frame(dt);
   demoFrame();
   if (SK.core) SK.core.frame(dt);   /* skins: a skin's own centrepiece */
-  composer.render();
+  /* earth wall fully up: the dimmed core behind it only needs every other frame (two WebGL scenes at full rate stutter) */
+  if (!(EW && EW.live() && EW.state.appear >= 1 && (frameOdd = !frameOdd))) composer.render();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

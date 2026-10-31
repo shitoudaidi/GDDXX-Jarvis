@@ -84,7 +84,7 @@ handChipText();
 setInterval(() => {
   /* only for a machine teardown: the Starship launch and the route map are watched, not handled, and the camera costs CPU
      (the Starship launch stuttered with the camera on) */
-  const want = HAND.on && document.body.classList.contains('demo') && !!(MACH.on && MACH.mesh), now = performance.now();
+  const want = HAND.on && document.body.classList.contains('demo') && (!!(MACH.on && MACH.mesh) || !!(typeof EW !== 'undefined' && EW && EW.live())), now = performance.now();
   if (want !== HAND.cam || (want && now - HAND.camSent > 5000)) { if (liveSend({ type: 'camera', on: want })) { HAND.cam = want; HAND.camSent = now; } }
   if (!want && HAND.engaged) handIdle();
 }, 500);
@@ -164,6 +164,9 @@ function handMsg(m) {
     const both = a.pinch < 0.35 && b.pinch < 0.35;
     handLine.classList.toggle('on', both); handLine.style.width = Math.hypot(bx - ax, by - ay) + 'px';
     handLine.style.transform = `translate(${ax}px,${ay}px) rotate(${Math.atan2(by - ay, bx - ax)}rad)`;
+    if (typeof EW !== 'undefined' && EW && EW.live()) {   /* earth wall: both hands pinching, apart or together, zoom the globe */
+      EW.hand2({ both, d: Math.hypot((b.x - a.x) * 1.33, b.y - a.y) }); HAND.zoom = null; HAND.fistSince = 0; HAND.pointI = -2; return;
+    }
     if (both && mach) {
       const d = Math.hypot((b.x - a.x) * 1.33, b.y - a.y);
       if (!HAND.twoBase) { HAND.twoBase = d; HAND.zoom0 = MACH.zoomGoal; }
@@ -192,6 +195,12 @@ function handMsg(m) {
   HAND.pose = handPoseName(h, 1) === '…' && point ? '指向' : handPoseName(h, 1);
   if (HAND.grab) point = false;                          /* once picked, the finger no longer picks */
   handCur.classList.add('on'); handCur.style.transform = `translate(${cx}px,${cy}px)`;
+  if (typeof EW !== 'undefined' && EW && EW.live()) {      /* earth wall: point at a card and pinch to open it; hold a fist to go back */
+    const [px, py] = handScr(h.ix != null ? h.ix : h.x, h.iy != null ? h.iy : h.y);
+    handCur.style.transform = `translate(${px}px,${py}px)`; handCur.style.setProperty('--p', pinch ? 1 : 0);
+    EW.hand({ sx: px, sy: py, pinch, fist, open });
+    return;
+  }
   let ring = 0;
   /* thumb-index zoom: starts on a pinch (open them: bigger) or on a still, wide "C" (close them: smaller) */
   if (!HAND.zoom && three <= 1 && pinch && !HAND.grab) HAND.zoom = { last: Math.max(0.12, h.pinch), still: now };

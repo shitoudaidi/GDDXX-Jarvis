@@ -93,6 +93,8 @@ class Service:
         self.speaker = make_speaker()
         self.clients = set()
         self.mic_msg = None                    # set while no audio device can be opened
+        self.muted = False                     # the HUD's 暂停聆听 switch: the microphone is ignored until it is turned back on
+        self.mute_reset = False                # the audio thread drops any half-heard sentence on the next block
         from . import gesture                  # hand tracking for holograms
         gesture.UI = self.broadcast
         self.loop = None
@@ -450,7 +452,7 @@ class Service:
             if gen == self.gen:
                 # finished on its own: keep listening for the reply, no wake word needed
                 self.engine.set_speaking(False, said=text)
-                self.broadcast({"type": "state", "state": "listening" if self.engine.state == "awake" else "idle"})
+                self.broadcast({"type": "state", "state": "listening" if self.engine.state == "awake" and not self.muted else "idle"})
         threading.Thread(target=work, daemon=True).start()
 
     # -- audio loop ----------------------------------------------------
@@ -500,6 +502,15 @@ class Service:
                 self.broadcast({"type": "mic", "ok": True})
             while True:
                 x = self.mic_q.get()
+                if self.mute_reset:                   # paused or resumed: forget what was half heard
+                    self.mute_reset = False
+                    self.engine._reset()
+                    self.clip_at = None
+                if self.muted:                        # paused: the microphone stays open (echo canceller keeps its timing) but nothing is heard
+                    if time.time() - self.level_at >= 0.5:
+                        self.broadcast({"type": "level", "mic": 0, "wake": 0})
+                        self.level_at = time.time()
+                    continue
                 self.recent = np.concatenate([self.recent[len(x):], x])
                 self.engine.feed(x)
                 w = getattr(self.engine.wake, "score", 0.0)
@@ -524,6 +535,33 @@ class Service:
                     self.stats = {"raw": 0.0, "clean": 0.0, "wake": 0.0, "status": ""}
                     last = time.time()
 
+    def earth_msg(self, msg):
+        from . import tools
+        earth = tools.plugin("earth")
+        if not earth:
+            return
+        t = msg.get("type")
+        if t == "earth_fetch":
+            earth.fetch_async(msg.get("cards"))
+        elif t == "earth_track":
+            earth.fetch_track(msg.get("icao24"))
+        elif t == "earth_flight":
+            earth.fetch_flight(str(msg.get("q", ""))[:12])
+        elif t == "earth_state":
+            earth.ON["at"] = time.time() if msg.get("on") else 0
+
+    def set_listening(self, on: bool):
+        """The HUD's 暂停聆听 button (or the M key): stop or resume hearing anything, wake word included.
+        Typed input keeps working while paused."""
+        if self.muted == (not on):
+            return self.broadcast({"type": "listen", "on": on})
+        self.muted = not on
+        self.mute_reset = True
+        log("listening resumed" if on else "listening paused")
+        self.broadcast({"type": "listen", "on": on})
+        if not on and self.engine.state == "awake":
+            self.broadcast({"type": "state", "state": "idle"})
+
     async def ws_main(self, host="127.0.0.1", port=int(os.environ.get("JARVIS_VOICE_PORT", 8765))):
         import websockets
         self.loop = asyncio.get_running_loop()
@@ -539,6 +577,7 @@ class Service:
                 await ws.send(json.dumps(agents.snapshot(), ensure_ascii=False))
                 if self.mic_msg:
                     await ws.send(json.dumps(self.mic_msg, ensure_ascii=False))
+                await ws.send(json.dumps({"type": "listen", "on": not self.muted}))
             except Exception:
                 pass
             threading.Thread(target=self.push_world, daemon=True).start()
@@ -557,6 +596,10 @@ class Service:
                     elif msg.get("type") == "camera":        # the HUD wants the camera (a demo is on screen)
                         from . import gesture
                         gesture.TRACKER.set(bool(msg.get("on")))
+                    elif msg.get("type", "").startswith("earth_"):   # the 地球此刻 wall: fetch feeds, track a flight, opened/closed
+                        threading.Thread(target=self.earth_msg, args=(msg,), daemon=True).start()
+                    elif msg.get("type") == "listen":        # 暂停聆听 / 恢复聆听
+                        self.set_listening(bool(msg.get("on")))
                     elif msg.get("type") == "interrupt":
                         self.on_event("stop", {})
             finally:

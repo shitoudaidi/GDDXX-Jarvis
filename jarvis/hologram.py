@@ -8,7 +8,8 @@ from pathlib import Path
 
 UI = None
 from .paths import HOLO, DESKTOP
-PLACES = [HOLO, DESKTOP]
+SAMPLES = Path(__file__).resolve().parent / "holo_samples"   # machines that ship with Jarvis (see holo_samples/README.md)
+PLACES = [HOLO, DESKTOP, SAMPLES]
 
 # Chinese names for the parts, shown on the hologram's tags. Keyed by the figure's own assembly ids.
 ZH = {
@@ -195,7 +196,10 @@ def show(machine="", action="show", part="", **_):
         return {"ok": True, "doing": note}
     found = _pick(machine)
     if not found:
-        return {"ok": False, "error": "no hologram model for that machine is stored yet"}
+        have = sorted({re.sub(r"[-_]light$", "", f.stem) for f, _ in _figures()})
+        return {"ok": False, "error": "no hologram model for that machine is stored yet",
+                "machines_available": have,
+                "note": "Offer one of the available machines instead, by its plain name."}
     f, text = found
     data, svg, label = _parse(text)
     key = next((k for k in ZH if k in (f.stem + label).lower()), None)

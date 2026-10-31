@@ -10,6 +10,8 @@ Jarvis itself is GPL-3.0 (see LICENSE). It includes or downloads the following, 
 | Saira, Michroma, JetBrains Mono (woff2 subsets) | `hud/vendor/fonts/` | SIL Open Font License 1.1 |
 | Syncopate (woff2 subset) | `hud/vendor/fonts/` | Apache License 2.0 |
 | Silero VAD model (`silero_vad.onnx`, from the sherpa-onnx release) | `models-bundle/` | MIT |
+| Raptor 2 figure (`raptor-engine.html`, from the anatomy examples, © 2026 Ryan) | `jarvis/holo_samples/` | MIT |
+| Earth textures (NASA Blue Marble and Black Marble, via the three-globe examples) | `hud/media/earth/` | public domain |
 | Xiaomi-cloud-tokens-extractor, Piotr Machowski | `jarvis/plugins/mihome/token_extractor.py` | MIT (`LICENSE.token_extractor` beside it) |
 
 The 8 HUD skins borrow the *visual language* of [agent-display](https://github.com/CYBERDADDYLEO/agent-display)

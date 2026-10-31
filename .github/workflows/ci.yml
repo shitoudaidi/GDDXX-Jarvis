@@ -44,6 +44,8 @@ jobs:
         env: {JARVIS_APP_DIR: "${{ github.workspace }}"}
       - run: python tests/simulate_en.py
         env: {JARVIS_VOICE_MODELS: "${{ github.workspace }}/models"}
+      - run: python tests/test_listen_pause.py
+        env: {JARVIS_VOICE_MODELS: "${{ github.workspace }}/models", JARVIS_STAY_ON: "1"}
 
   hud:
     runs-on: ubuntu-latest

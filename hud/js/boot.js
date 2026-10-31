@@ -7,7 +7,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 Object.assign(window, { THREE, EffectComposer, RenderPass, UnrealBloomPass, OutputPass });
-const PARTS = ['core.js', 'nav.js', 'machine.js', 'render.js', 'hand.js', 'skins.js', 'cores/kit.js', 'cores/neural.js', 'cores/nebula.js', 'cores/ion.js', 'cores/works.js', 'cores/factory.js', 'cores/spider.js', 'cores/ops.js', 'skin-picker.js', 'demos.js', 'demo-mode.js', 'loop.js', 'panels.js', 'creator.js', 'interaction.js', 'subtitles.js', 'talk.js', 'live.js', 'brain-window.js', 'voiceprint.js', 'start.js'];
+const PARTS = ['core.js', 'nav.js', 'machine.js', 'render.js', 'hand.js', 'skins.js', 'cores/kit.js', 'cores/neural.js', 'cores/nebula.js', 'cores/ion.js', 'cores/works.js', 'cores/factory.js', 'cores/spider.js', 'cores/ops.js', 'skin-picker.js', 'demos.js', 'demo-mode.js', 'loop.js', 'panels.js', 'creator.js', 'interaction.js', 'subtitles.js', 'talk.js', 'live.js', 'tour.js', 'brain-window.js', 'voiceprint.js', 'start.js'];
 for (const p of [...PARTS, 'onboard.js']) {
   const s = document.createElement('script');
   s.src = 'js/' + p; s.async = false;

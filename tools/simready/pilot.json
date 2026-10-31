@@ -1,0 +1,261 @@
+[
+ {
+  "slug": "simready-fanuc-crx10ia",
+  "repo": "FANUC-CORPORATION/SimReady-Assets",
+  "dir": "crx10ia",
+  "licence": "Apache-2.0",
+  "title": "FANUC CRX-10iA 协作机械臂",
+  "aliases": [
+   "robot arm",
+   "robotic arm",
+   "fanuc",
+   "crx",
+   "crx10ia",
+   "cobot",
+   "collaborative robot",
+   "industrial robot",
+   "机械臂",
+   "协作机器人",
+   "工业机器人",
+   "发那科"
+  ],
+  "desc": "发那科 CRX-10iA 六轴协作机械臂，负载 10 公斤，臂展约 1.25 米，每个关节都能感知碰撞，可以和人并肩工作。模型来自 FANUC 在 NVIDIA SimReady 上公开的仿真资产。",
+  "chain": [
+   {
+    "name": "底座",
+    "say": "固定在工作台上，整条手臂的反作用力都落在这里。"
+   },
+   {
+    "name": "J1 回转座",
+    "say": "第一轴，让整条手臂水平转动。"
+   },
+   {
+    "name": "J2 下臂",
+    "say": "第二轴，大臂前后摆动，决定手臂能伸多远。"
+   },
+   {
+    "name": "J3 上臂",
+    "say": "第三轴，肘关节，和 J2 配合把末端送到高处或低处。"
+   },
+   {
+    "name": "J4 前臂",
+    "say": "第四轴，前臂自转，开始调整手腕的朝向。"
+   },
+   {
+    "name": "J5 手腕",
+    "say": "第五轴，手腕上下摆动。"
+   },
+   {
+    "name": "J6 法兰",
+    "say": "第六轴，末端法兰，夹爪、吸盘这些工具就装在这里。"
+   }
+  ]
+ },
+ {
+  "slug": "simready-robotiq-2f85",
+  "repo": "Robotiq-Official/simready-assets",
+  "dir": "Robotiq_2F_85",
+  "licence": "CC-BY-4.0",
+  "title": "Robotiq 2F-85 自适应二指夹爪",
+  "aliases": [
+   "gripper",
+   "robot gripper",
+   "two finger gripper",
+   "robotiq",
+   "2f-85",
+   "2f85",
+   "夹爪",
+   "机械手",
+   "二指夹爪"
+  ],
+  "desc": "Robotiq 2F-85 自适应二指夹爪，开口 85 毫米。四连杆手指既能平行夹取，也能包住不规则物体。模型来自 Robotiq 在 NVIDIA SimReady 上公开的仿真资产。",
+  "parts": {
+   "outer_?finger": {
+    "name": "外侧手指",
+    "say": "手指外侧的那一节，和内侧连杆一起构成四连杆。"
+   },
+   "outer_?knuckle|finger1|jft": {
+    "name": "外侧连杆",
+    "say": "四连杆的一边，驱动器推动它让手指合拢。"
+   },
+   "inner_?knuckle|finger2|jfp": {
+    "name": "内侧连杆",
+    "say": "四连杆的另一边，保证指尖平行移动。"
+   },
+   "inner_?finger|finger3|jfl": {
+    "name": "手指",
+    "say": "碰到物体后会自动转成包络抓取，这就是“自适应”。"
+   },
+   "finger4|jfh": {
+    "name": "指节",
+    "say": "连接连杆和指尖的关节件。"
+   },
+   "tip|jfd": {
+    "name": "指尖垫",
+    "say": "直接接触物体的摩擦垫，可以换成不同材质。"
+   },
+   "tsf|case": {
+    "name": "触觉传感器壳",
+    "say": "装触觉传感器的指尖外壳，能感到压力分布。"
+   },
+   "base|jfx": {
+    "name": "驱动底座",
+    "say": "里面是电机和丝杠，一个电机同时带动两根手指。"
+   }
+  }
+ },
+ {
+  "slug": "simready-robotiq-hand-e",
+  "repo": "Robotiq-Official/simready-assets",
+  "dir": "Robotiq_Hand_E",
+  "licence": "CC-BY-4.0",
+  "title": "Robotiq Hand-E 平行夹爪",
+  "aliases": [
+   "hand-e",
+   "hand e",
+   "parallel gripper",
+   "gripper",
+   "robotiq",
+   "平行夹爪",
+   "电动夹爪"
+  ],
+  "desc": "Robotiq Hand-E 电动平行夹爪，两根手指沿直线开合，适合精密装配。模型来自 Robotiq 在 NVIDIA SimReady 上公开的仿真资产。",
+  "parts": {
+   "fingertip|tip": {
+    "name": "指尖",
+    "say": "可更换的指尖，按工件形状选平面、V 槽或延长款。"
+   },
+   "finger": {
+    "name": "手指",
+    "say": "沿直线导轨平行移动，两根手指始终对称。"
+   },
+   "base": {
+    "name": "驱动本体",
+    "say": "电机、丝杠和导轨都在这里，侧面是接口和指示灯。"
+   }
+  }
+ },
+ {
+  "slug": "simready-brake-assembly",
+  "repo": "nvidia/simready-assets",
+  "dir": "brakeSystem_brakes_assembly_a01",
+  "licence": "CC-BY-4.0",
+  "title": "汽车盘式刹车总成",
+  "aliases": [
+   "brake",
+   "brakes",
+   "disc brake",
+   "brake assembly",
+   "caliper",
+   "刹车",
+   "刹车总成",
+   "盘式制动器",
+   "制动器"
+  ],
+  "desc": "一套汽车盘式刹车：两片式浮动刹车盘和对置活塞卡钳。踩下刹车时，刹车油推动卡钳活塞，刹车片夹住刹车盘，把车的动能变成热。模型来自 NVIDIA SimReady。",
+  "parts": {
+   "disc_01_mesh_00_1$": {
+    "name": "刹车盘摩擦环",
+    "say": "刹车片夹住的就是这一圈，中间有通风槽，边刹边散热。"
+   },
+   "disc_01_mesh_00_2$": {
+    "name": "浮动盘支架",
+    "say": "连接摩擦环和轮毂，摩擦环受热膨胀时能在它上面微微浮动，不容易变形。"
+   },
+   "disc_01_mesh_00_3$": {
+    "name": "中心安装盘",
+    "say": "上面五个孔对应轮毂螺栓，整张刹车盘就靠它装在车轮上。"
+   },
+   "disc_01_mesh_00_rep1$": {
+    "name": "浮动销 ×8",
+    "say": "八颗浮动销把摩擦环挂在支架上，允许一点点热胀冷缩。"
+   },
+   "disc_01_mesh_00_rep2$": {
+    "name": "浮动销垫片 ×8",
+    "say": "垫在浮动销下面，保持摩擦环和支架之间的间隙。"
+   },
+   "caliper_01_obj_00_1$": {
+    "name": "卡钳本体",
+    "say": "骑在刹车盘上的那块铸件，里面的活塞被刹车油推动，把刹车片压向刹车盘。"
+   },
+   "caliper_01_obj_00_2$": {
+    "name": "刹车片摩擦块（左）",
+    "say": "直接摩擦刹车盘的材料，磨薄到报警片露出来就该换了。"
+   },
+   "caliper_01_obj_00_3$": {
+    "name": "刹车片摩擦块（右）",
+    "say": "另一侧的摩擦块，两边同时夹住刹车盘。"
+   },
+   "caliper_01_obj_00_4$": {
+    "name": "刹车片背板（左）",
+    "say": "钢制背板，活塞推的是它，再由它把力传给摩擦块。"
+   },
+   "caliper_01_obj_00_5$": {
+    "name": "刹车片背板（右）",
+    "say": "另一侧的背板，背面通常还贴着降噪片。"
+   },
+   "caliper_01_obj_00_rep1$": {
+    "name": "刹车片导销",
+    "say": "刹车片挂在导销上滑动，松开刹车时能退回来。"
+   }
+  },
+  "clusters": 6
+ },
+ {
+  "slug": "simready-air-compressor",
+  "repo": "nvidia/simready-assets",
+  "dir": "airSystem_compressor_a01",
+  "licence": "CC-BY-4.0",
+  "title": "汽车空调压缩机",
+  "aliases": [
+   "ac compressor",
+   "a/c compressor",
+   "air conditioning compressor",
+   "compressor",
+   "air compressor",
+   "空调压缩机",
+   "压缩机",
+   "空压机"
+  ],
+  "desc": "汽车空调压缩机：发动机皮带带着皮带轮转，电磁离合器一吸合，主轴就带动缸体里的活塞压缩冷媒，送去冷凝器。模型来自 NVIDIA SimReady。",
+  "clusters": 6,
+  "parts": {
+   "body_01_mesh_01_1$": {
+    "name": "前壳体",
+    "say": "装主轴和斜盘的那一段，斜盘把主轴的转动变成活塞的往复运动。"
+   },
+   "body_01_mesh_01_2$": {
+    "name": "后盖",
+    "say": "里面分成吸气腔和排气腔，冷媒从这里进出。"
+   },
+   "body_01_mesh_01_3$": {
+    "name": "缸体",
+    "say": "一圈气缸都在这里，活塞来回运动把低压冷媒压成高压气体。"
+   },
+   "body_01_mesh_01_4$": {
+    "name": "前端盖",
+    "say": "封住前壳体，电磁线圈就固定在它后面。"
+   },
+   "body_01_mesh_01_5$": {
+    "name": "管路接口",
+    "say": "连接空调管路的进出口，旁边常装着压力开关。"
+   },
+   "body_01_mesh_01_rep1$": {
+    "name": "贯穿螺栓",
+    "say": "几根长螺栓把前壳体、缸体和后盖串在一起锁紧。"
+   },
+   "driveShaft_01_obj_00_1$": {
+    "name": "皮带轮",
+    "say": "发动机皮带一直带着它转，但只有离合器吸合时压缩机才工作。"
+   },
+   "driveShaft_01_obj_00_2$": {
+    "name": "离合器吸盘",
+    "say": "线圈通电，吸盘被吸到皮带轮上，主轴就跟着转起来；断电就弹开。"
+   },
+   "driveShaft_01_obj_00_rep\\d$": {
+    "name": "离合器铆钉",
+    "say": "把吸盘和弹片、轴毂连在一起的小铆钉。"
+   }
+  }
+ }
+]

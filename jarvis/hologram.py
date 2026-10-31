@@ -232,6 +232,86 @@ def show(machine="", action="show", part="", **_):
                     "itself back together. It stays up afterwards: the user can turn it and pull parts with the mouse."}
 
 
+
+# ---- the 3D 拆解 library on the HUD: list every stored teardown, show one by its file ----
+_CAT = {}
+
+
+def _thumb(cloud, n=900):
+    """A small line-art view of the point cloud for the library card: an SVG path in a 0..100 box."""
+    import base64 as _b, struct as _s, math as _m, random as _r
+    raw = _b.b64decode(cloud["points"])
+    pts = list(_s.iter_unpack("<hhhBB", raw))
+    wire = [p for p in pts if p[3] != 1] or pts
+    rnd = _r.Random(3)
+    pick = rnd.sample(wire, min(n, len(wire)))
+    v = (0.8, -0.6, 0.45); L = _m.sqrt(sum(c * c for c in v)); v = tuple(c / L for c in v)
+    r = (-v[1], v[0], 0.0); L = _m.hypot(r[0], r[1]) or 1; r = (r[0] / L, r[1] / L, 0.0)
+    u = (v[1] * r[2] - v[2] * r[1], v[2] * r[0] - v[0] * r[2], v[0] * r[1] - v[1] * r[0])
+    xy = [((p[0] * r[0] + p[1] * r[1]), -(p[0] * u[0] + p[1] * u[1] + p[2] * u[2])) for p in pick]
+    if not xy:
+        return ""
+    xs, ys = [a for a, _ in xy], [b for _, b in xy]
+    x0, y0 = min(xs), min(ys); s = 100.0 / max(max(xs) - x0, max(ys) - y0, 1)
+    ox, oy = (100 - (max(xs) - x0) * s) / 2, (100 - (max(ys) - y0) * s) / 2
+    return "".join(f"M{(a - x0) * s + ox:.1f} {(b - y0) * s + oy:.1f}h0" for a, b in xy)
+
+
+def catalog():
+    out, seen = [], set()
+    figs = _figures()
+    stems = {f.stem for f, _ in figs}
+    for f, text in figs:
+        if f.stem.endswith("-light") and f.stem[:-6] in stems:
+            continue
+        try:
+            data, svg, label = _parse(text)
+        except Exception:
+            continue
+        key = next((k for k in ZH if k in (f.stem + label).lower()), None)
+        z = ZH.get(key, {})
+        title = (z.get("title") or re.split(r"[:,]| hanging", label)[0] or f.stem)[:40]
+        if title in seen:
+            continue
+        seen.add(title)
+        pieces = {k: v for k, v in data.get("pieces", {}).items() if k != "stand"}
+        names = [(z.get("labels", {}).get(k) or (v.get("name", k),))[0] for k, v in pieces.items()]
+        item = {"file": f.stem, "title": title, "parts": len(pieces), "names": names[:14],
+                "desc": (label.split(". ", 1)[1] if ". " in label else "")[:160],
+                "src": "SimReady" if "SimReady" in text else ("内置" if f.parent == SAMPLES else ("Anatomy" if "anatomy" in text.lower() else "本地")),
+                "at": int(f.stat().st_mtime), "thumb": ""}
+        stem = f.stem[:-6] if f.stem.endswith("-light") else f.stem
+        for c in [f.with_suffix(".holo.json"), *[d / (stem + ".holo.json") for d in PLACES]]:
+            try:
+                mt = c.stat().st_mtime
+                if _CAT.get(str(c), (None,))[0] != mt:
+                    _CAT[str(c)] = (mt, _thumb(json.loads(c.read_text(encoding="utf-8"))))
+                item["thumb"] = _CAT[str(c)][1]
+                break
+            except Exception:
+                continue
+        out.append(item)
+    out.sort(key=lambda i: (i["src"] == "内置", -i["at"]))
+    return out
+
+
+def show_file(stem, action="show"):
+    """Show one stored figure by its file name (the library card), not by a spoken machine name."""
+    global _pick
+    keep = _pick
+
+    def exact(_machine):
+        for f, text in _figures():
+            if f.stem == stem:
+                return f, text
+        return None
+    _pick = exact
+    try:
+        return show(stem, action)
+    finally:
+        _pick = keep
+
+
 def tool():
     return {"type": "function", "function": {
         "name": "show_machine_hologram",

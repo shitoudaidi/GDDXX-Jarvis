@@ -12,6 +12,7 @@ Jarvis itself is GPL-3.0 (see LICENSE). It includes or downloads the following, 
 | Silero VAD model (`silero_vad.onnx`, from the sherpa-onnx release) | `models-bundle/` | MIT |
 | Raptor 2 figure (`raptor-engine.html`, from the anatomy examples, © 2026 Ryan) | `jarvis/holo_samples/` | MIT |
 | Earth textures (NASA Blue Marble and Black Marble, via the three-globe examples) | `hud/media/earth/` | public domain |
+| Orbitron, Rajdhani, JetBrains Mono (woff2 latin subsets, used by the optional 流浪地球计划 add-on) | `jarvis/plugins/earth_migration/fonts/` | SIL Open Font License 1.1 |
 | Xiaomi-cloud-tokens-extractor, Piotr Machowski | `jarvis/plugins/mihome/token_extractor.py` | MIT (`LICENSE.token_extractor` beside it) |
 
 The 8 HUD skins borrow the *visual language* of [agent-display](https://github.com/CYBERDADDYLEO/agent-display)
@@ -31,6 +32,14 @@ Listed in `app/models.json`, fetched from their original publishers into the loc
 | Piper voice en_GB "alan" (fallback voice) | rhasspy/piper-voices | see its MODEL_CARD |
 | Kokoro multi-lang v1.1 (Chinese mode only) | hexgrad via sherpa-onnx | Apache-2.0 |
 | **Jarvis voice "jarvis-high"** (default voice) | community Piper model (jgkawell/jarvis on Hugging Face; ModelScope mirror rubintry/jarvis) | community model trained on film audio: the character's voice belongs to its rights holders. Downloaded for **personal, non-commercial use only**. Do not redistribute it or use it commercially. |
+
+## Optional download (only when the user presses 下载)
+
+「流浪地球计划」 is [oxomkbk/earth-migration](https://github.com/oxomkbk/earth-migration) (MIT; its own CREDITS list NASA,
+Solar System Scope CC BY 4.0, Poly Haven CC0 and three.js material). It is a **fan work inspired by 《流浪地球》 / *The Wandering
+Earth***, not affiliated with its rights holders, so it is not in this repository or the installers: the menu entry downloads
+the files of one pinned commit from the author's repository (or a jsDelivr copy of it), checks each against
+`jarvis/plugins/earth_migration/manifest.json` (sha256) and keeps them in `~/.jarvis/addons/earth-migration`.
 
 Python packages are installed from PyPI by `app/install.py` (`requirements.txt`): sherpa-onnx, onnxruntime, numpy, scipy,
 sounddevice/PortAudio, soundfile, livekit (WebRTC audio processing), piper-tts (GPL-3.0), imageio-ffmpeg (bundles FFmpeg),

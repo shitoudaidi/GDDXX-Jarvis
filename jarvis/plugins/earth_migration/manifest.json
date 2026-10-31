@@ -1,0 +1,497 @@
+{
+"repo": "oxomkbk/earth-migration",
+"commit": "fc129932a990a45a4ca501aaeac74d4ff39ae089",
+"license": "MIT",
+"files": [
+{
+"path": "LICENSE",
+"size": 1069,
+"sha256": "b4712e4eaa46f27ee3b83ddc45983f2f3089d584e029ecc1e07ba05a66deacc1"
+},
+{
+"path": "assets/earth/earth_atmos_2048.jpg",
+"size": 512606,
+"sha256": "2faa400d1eade3bc44caf6750d1b772bd9bbb6d87362c02bc7c3304e78fa0a9d"
+},
+{
+"path": "assets/earth/earth_bump_roughness_clouds_4096.jpg",
+"size": 1508389,
+"sha256": "0796f4211c209d1afe9e26a06a283cdc21434430a780a25457b2417568a8591e"
+},
+{
+"path": "assets/earth/earth_clouds_1024.png",
+"size": 260222,
+"sha256": "7d3b82ef6b3feb506fc06f02a744aed3d864e23e7417075005f4082a7ff935a4"
+},
+{
+"path": "assets/earth/earth_day_4096.jpg",
+"size": 473093,
+"sha256": "cd7712d3e891425d9948ea5ac18d3bb1e7e834ea038188587897e689a7b35d0f"
+},
+{
+"path": "assets/earth/earth_lights_2048.png",
+"size": 734910,
+"sha256": "3cc6972d1d5b6310f33ea6ef4cc14a38f1dd141a91d26888206889327d983d7b"
+},
+{
+"path": "assets/earth/earth_night_4096.jpg",
+"size": 267061,
+"sha256": "17a868f79c7be40fa1f557e6114d7889d907f18f7a3fce51f33b0b830ef50242"
+},
+{
+"path": "assets/earth/earth_specular_2048.jpg",
+"size": 223421,
+"sha256": "2df48906732d7a458b2d0a7cdec51a829262307c6bdee4cfdf079a4dd7c71c69"
+},
+{
+"path": "assets/earth/moon_1024.jpg",
+"size": 238093,
+"sha256": "fcb0f1f5548e6e18d40063dd55c6aacd3daedf2407b181dab85b61e22bf9fe57"
+},
+{
+"path": "assets/models/hubble.glb",
+"size": 1694988,
+"sha256": "e5ba4de15c7d359ac8fa1ab7e286aff42dec09c0fadae3db99252587f39fa384"
+},
+{
+"path": "assets/models/iss.glb",
+"size": 476992,
+"sha256": "2ba4427413b0dd89a33d2acaf962dea8a96a3b1d8dceda05cc7aad547ffd3d16"
+},
+{
+"path": "assets/models/launcher.glb",
+"size": 198480,
+"sha256": "411ad36727a4290123431e77ca7a4622dcd534e2e76eb1134dc19fc07dd5be65"
+},
+{
+"path": "assets/planets/ceres_2k.jpg",
+"size": 1127678,
+"sha256": "ee59b2c7aa399dfdc810078c723373670133fe8505e439601dff4ce6f3cc5ad8"
+},
+{
+"path": "assets/planets/earth_clouds_4k.jpg",
+"size": 2076580,
+"sha256": "f7e0c589dd01145609c6e170783b6a37929c8e6208c4d61ff781c7bccae1609a"
+},
+{
+"path": "assets/planets/earth_day_4k.jpg",
+"size": 987479,
+"sha256": "e08776478c7070f368ec46829828256b7f5f7bc4de1a78c0729bcf643a771f4b"
+},
+{
+"path": "assets/planets/eris_2k.jpg",
+"size": 1070441,
+"sha256": "0f19f080aa7b4b047a1c6c5e169d62c38a5763e6a3d7724180cb471000fb04fb"
+},
+{
+"path": "assets/planets/haumea_2k.jpg",
+"size": 900211,
+"sha256": "6fc091868a7c5ea1b8a7d4d76ce946695e98358f4c4277a2c88f76c36fc95ca1"
+},
+{
+"path": "assets/planets/jupiter_4k.jpg",
+"size": 1110444,
+"sha256": "4efed11f627a6db7c3982c9a1e3699fdf89550dd0482e1931ef04d2bc6df7065"
+},
+{
+"path": "assets/planets/makemake_2k.jpg",
+"size": 1179218,
+"sha256": "796b654648df0b241ad2e03ce60677bd7fd854c98fd8ff8b5c5f9750c01be082"
+},
+{
+"path": "assets/planets/mars_2k.jpg",
+"size": 750547,
+"sha256": "2d187f3e77a98eaa8cea5f4cc722f633c122ef170b9e94ace6b5fb6cbc3f8e01"
+},
+{
+"path": "assets/planets/mercury_2k.jpg",
+"size": 872555,
+"sha256": "5a5c80607f643496bac9a631e71957def35ed788895f18b678ac849c2b38e48a"
+},
+{
+"path": "assets/planets/moon_2k.jpg",
+"size": 1053869,
+"sha256": "2764ba6535ea0481a062846ee033cc7a909dae05b31a8fd13f3e98f3a7fd92bd"
+},
+{
+"path": "assets/planets/neptune_2k.jpg",
+"size": 241580,
+"sha256": "cb42ea82709741d28b0af44d8b283cbc6dbd0c521a7f0e1e1e010ade00977df6"
+},
+{
+"path": "assets/planets/pluto_2k.jpg",
+"size": 400987,
+"sha256": "08866f4255506f703897c357eb1b47fbba1f62d194d74d0234d99060a544e600"
+},
+{
+"path": "assets/planets/saturn_2k.jpg",
+"size": 132865,
+"sha256": "e2cb0c59befc055416943222ed15cb6369b8dced08ca3c1f94bd7f6083b798dc"
+},
+{
+"path": "assets/planets/saturn_ring.png",
+"size": 19227,
+"sha256": "1563d6dc063eb2a0293bbffc4c695c5e73b70aec884a279be36ea250198e9223"
+},
+{
+"path": "assets/planets/sun_2k.jpg",
+"size": 822427,
+"sha256": "ff0f076ba65e03b5ab518451bc96699325be38e3ccbdd5869ee1c00f3a0c8816"
+},
+{
+"path": "assets/planets/uranus_2k.jpg",
+"size": 77751,
+"sha256": "d15239d46f82d3ea13d2b260b5b29b2a382f42f2916dae0694d0387b1204a09d"
+},
+{
+"path": "assets/planets/venus_atmosphere_2k.jpg",
+"size": 229696,
+"sha256": "225012ad4911730605c4e189ca2a3bf674fce50cc48aab4102b936b47d6991ac"
+},
+{
+"path": "assets/sky/milkyway_4k.jpg",
+"size": 2910312,
+"sha256": "c1b6a53f2c98f7ba2206c7403a315db3fbdfee838e10026e6f08bd0fc1c2f80c"
+},
+{
+"path": "assets/sky/milkyway_top_2k.jpg",
+"size": 676732,
+"sha256": "c570500db8b77c3651c82ea601e23f0c90562890cf17c160eef3f7e55c0cb5ea"
+},
+{
+"path": "assets/sky/stars.bin",
+"size": 1008000,
+"sha256": "5588392af7e2d81edb097836260009dde46c9f8ff9981e6d2c947af9497f0d4b"
+},
+{
+"path": "assets/textures/aerial_ground_rock_diff_1k.jpg",
+"size": 599629,
+"sha256": "c14761998b32630dd193b0fbfd31c8c6f5a144a701b84f87f9d7c33596cc554f"
+},
+{
+"path": "assets/textures/blue_metal_plate_arm_1k.jpg",
+"size": 419910,
+"sha256": "9321b539fe9cf0136ea04c3405b95ae82383f31c258b9c0e37ff8a1e577b637f"
+},
+{
+"path": "assets/textures/blue_metal_plate_diff_1k.jpg",
+"size": 395923,
+"sha256": "a0162bffce47d4a35613a12af22571b28c18412dc5805cbb69eac343554ef750"
+},
+{
+"path": "assets/textures/blue_metal_plate_nor_gl_1k.jpg",
+"size": 238025,
+"sha256": "970f0273c9e2e3b4fc8338bfd58a28c413b70ac4d1734d9dc8a136724bde56e6"
+},
+{
+"path": "assets/textures/gray_rocks_arm_1k.jpg",
+"size": 827806,
+"sha256": "ceaef1b0ee229a4c2ed3905b084d3015a39a59e5175ea936bb761417ed059c76"
+},
+{
+"path": "assets/textures/gray_rocks_diff_1k.jpg",
+"size": 1014209,
+"sha256": "4c3b6fada26a9b564ca110ad47bca5921eceefc611d970159ce559c3c50728a0"
+},
+{
+"path": "assets/textures/gray_rocks_nor_gl_1k.jpg",
+"size": 1266242,
+"sha256": "1922b18e09a95bb782794163117ea47d62771dd59501085cc95ab10081107a9d"
+},
+{
+"path": "assets/textures/metal_plate_02_arm_1k.jpg",
+"size": 1075839,
+"sha256": "e099a8385d53f4a515b7e0ce94f85d88657fcac49c23979474f5394b22dd550b"
+},
+{
+"path": "assets/textures/metal_plate_02_diff_1k.jpg",
+"size": 625917,
+"sha256": "6e80877d0e9d5973d96298c6091df7ace906b0a6760afc4f3592e4855f3f1d4c"
+},
+{
+"path": "assets/textures/metal_plate_02_nor_gl_1k.jpg",
+"size": 183264,
+"sha256": "58736fbb8aa4fc6690cf8152b174db65caf22a766375b625fb0087e1bc955bc7"
+},
+{
+"path": "assets/textures/painted_metal_shutter_arm_1k.jpg",
+"size": 606809,
+"sha256": "26a49a8b60dd2e1fdb325c1488d55d2e6e7362f4505e400ac2243bf0ec67ca56"
+},
+{
+"path": "assets/textures/painted_metal_shutter_diff_1k.jpg",
+"size": 627333,
+"sha256": "278394aabcb5a5bd560d9904358682acc5af23666b22bd1f12558789da4aa4d2"
+},
+{
+"path": "assets/textures/painted_metal_shutter_nor_gl_1k.jpg",
+"size": 730726,
+"sha256": "7545d778669c55e3e9bdc89355ce7190077c3ffdfb324e988ff9803a5bae5a46"
+},
+{
+"path": "beyond.html",
+"size": 7029,
+"sha256": "4ed84dc589c150af1fddf3473b5c8dd0fa24e1bec2c55015297f3dbab43aba30"
+},
+{
+"path": "css/app.css",
+"size": 19454,
+"sha256": "c3801c8ccc3c386b81aac6527bca205f20766cb1c39a299176240a33a85367d5"
+},
+{
+"path": "css/beyond.css",
+"size": 41530,
+"sha256": "3a6f3bd2e939178645b548c26b60d114074a6664a4688539e743e8f7e436c147"
+},
+{
+"path": "index.html",
+"size": 10280,
+"sha256": "37bcc66838e4d2af8d957fb897623ebc991b77c6fdcc31ae60cba1e37ffb5cfe"
+},
+{
+"path": "js/app.js",
+"size": 173986,
+"sha256": "689f89f2322fcc66d08558220099294be0e82f457665f6e38ea417fb8741fc97"
+},
+{
+"path": "js/beyond/audio.js",
+"size": 5470,
+"sha256": "d06cf54a5d388648349257e91f916339c2a9aeea3ff14cfdb3438565fa988b05"
+},
+{
+"path": "js/beyond/craft.js",
+"size": 20804,
+"sha256": "d04cf6cbd509de34dd00a6bd8ec0caaca0459f73bb9aacc5871a0056465b1006"
+},
+{
+"path": "js/beyond/dash.js",
+"size": 21414,
+"sha256": "ea94b92d74ff536eeeb713e0b6848d0f702aaa08dfb743dad8b5601476397eda"
+},
+{
+"path": "js/beyond/earth.js",
+"size": 98488,
+"sha256": "81b5237ff0462e06b967729a1b53210e6e418caa4f80240bd7167d72368c3296"
+},
+{
+"path": "js/beyond/galaxy.js",
+"size": 40797,
+"sha256": "5098ddbe27cbfb136ad08a69c632728cc0631b9e6c5d199d827a4a375e22d046"
+},
+{
+"path": "js/beyond/main.js",
+"size": 71037,
+"sha256": "4c1d5fdc5f1c55ff7a1b9fdcdfbea4ff725a264477492f549ae3c325459b03ae"
+},
+{
+"path": "js/beyond/post.js",
+"size": 25079,
+"sha256": "4eafdb08e576e9df494e732782173a0f4cbfca180f64cfe12eb42f0954146af4"
+},
+{
+"path": "js/beyond/solar.js",
+"size": 48523,
+"sha256": "8bb14d4dc8cdcb7177161baface5aa010d6f21ebabe0a48de76722070604f45f"
+},
+{
+"path": "js/beyond/story.js",
+"size": 27630,
+"sha256": "1fe474064f1a791c75b8dcb087144be80705dc04367db1dd34ccc6af0fed3f8e"
+},
+{
+"path": "js/beyond/util.js",
+"size": 8771,
+"sha256": "2034dec711f654f9b1975957f7c17d71cd0d6ad563159eb23f36ba86bd09a4f5"
+},
+{
+"path": "js/boot.js",
+"size": 1099,
+"sha256": "1b176e700387e8b19b6d447bb0ecdc16294844a11daa01682e3299cc6cb06c8c"
+},
+{
+"path": "js/fx/aerial.js",
+"size": 2779,
+"sha256": "8543af9c17638965187931d8559d9d5950caaf5a1ccc95d147e1901b18c77abe"
+},
+{
+"path": "js/fx/atmosphere.js",
+"size": 5384,
+"sha256": "fd888c44aca8bf441cb84d6a563e57195be8d9dde8e6f93ec04406193a34ff66"
+},
+{
+"path": "js/fx/kit.js",
+"size": 4264,
+"sha256": "7f78d9969615982d5e3ef98b070317aa724cabc3375a203fa23d0c78a3edcb50"
+},
+{
+"path": "js/fx/models.js",
+"size": 4809,
+"sha256": "43622cec7aefc419b9c330517c41a095308816c6271ecb12e208b2b5465ef688"
+},
+{
+"path": "js/fx/shock.js",
+"size": 3383,
+"sha256": "5692b69761e69460d2d30de16e9c73bb2e5355452ee57da464e98ecd1e5210c4"
+},
+{
+"path": "js/fx/smoke.js",
+"size": 8979,
+"sha256": "4c6b3ae8bbc69296ecc47c326a20c16170603459c2e11de3099481774f51fd79"
+},
+{
+"path": "js/fx/triplanar.js",
+"size": 9195,
+"sha256": "fcdfc71104ed625e6b1b4f293328bac57377ee6ba2d96ce830117a5f44b31543"
+},
+{
+"path": "js/fx/volplume.js",
+"size": 7407,
+"sha256": "c692171f307f6da2cadfd823f30d85b33f4410d8c752c3e269ce4fee599e00e7"
+},
+{
+"path": "js/wallpaper/controller.js",
+"size": 29268,
+"sha256": "f7863d0d5a1882c8e48b2d651f1fec0d4c50ab850c8d65fa7ef7170fe1a803bc"
+},
+{
+"path": "js/wallpaper/entry.js",
+"size": 252,
+"sha256": "d17be0819ddd3851d0e77868a5125944932851a987524b93b6120ee4e624cc86"
+},
+{
+"path": "js/wallpaper/interactive.js",
+"size": 6802,
+"sha256": "8028236b02f77ed0e9d962f6d959690432ed1a3ad9d05bd61576b8a47584f79f"
+},
+{
+"path": "js/wallpaper/pack.js",
+"size": 1542,
+"sha256": "18cddff71210e6c70b4c1e966ee57de91988b37e8f36db07822d8bc8de327158"
+},
+{
+"path": "vendor/three/LICENSE",
+"size": 1081,
+"sha256": "852e0e8699169bf9f6fdc6bda3e682d078dcbc738b5d33e74df594721bff271d"
+},
+{
+"path": "vendor/three/build/three.module.js",
+"size": 1272972,
+"sha256": "76dea8151bc9352aef3528b4262e249b2604f62543828328db978d060d61a495"
+},
+{
+"path": "vendor/three/examples/jsm/controls/OrbitControls.js",
+"size": 29868,
+"sha256": "5a44a9e86a2a0fb11933eed69bc2cd33c76a496854c1aed6ed776efa87d7b064"
+},
+{
+"path": "vendor/three/examples/jsm/exporters/GLTFExporter.js",
+"size": 77714,
+"sha256": "f8a6eb87719e68c925fdf445014b5ead49cf779ae14e69c6cc1cb1dd4eae514d"
+},
+{
+"path": "vendor/three/examples/jsm/libs/draco/gltf/draco_decoder.js",
+"size": 512465,
+"sha256": "8625489da79a805f4f2a7d511c3e52d8b4085608a9d2a4d5f4f9de5db0aea04f"
+},
+{
+"path": "vendor/three/examples/jsm/libs/draco/gltf/draco_decoder.wasm",
+"size": 192420,
+"sha256": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac"
+},
+{
+"path": "vendor/three/examples/jsm/libs/draco/gltf/draco_wasm_wrapper.js",
+"size": 58456,
+"sha256": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6"
+},
+{
+"path": "vendor/three/examples/jsm/libs/fflate.module.js",
+"size": 83291,
+"sha256": "5686c3d02432a47d8e31f16cabc2d725bbf4531a3abb37cc6fd00142256e3730"
+},
+{
+"path": "vendor/three/examples/jsm/loaders/DRACOLoader.js",
+"size": 13628,
+"sha256": "65c114ecb7b349cdc59c75b2c92d19cca672a138060dba0f60f64262fa40408c"
+},
+{
+"path": "vendor/three/examples/jsm/loaders/EXRLoader.js",
+"size": 54981,
+"sha256": "f7be0130cac5cb9b231a85cc510a7ce5bfe4c10c51db36c3566a6e33c2cf5d7f"
+},
+{
+"path": "vendor/three/examples/jsm/loaders/GLTFLoader.js",
+"size": 108522,
+"sha256": "d073b438e6a07e1359741dd5d6c76c953420cc0d4fd84eb1bdde94315540e6a3"
+},
+{
+"path": "vendor/three/examples/jsm/postprocessing/EffectComposer.js",
+"size": 4651,
+"sha256": "d234e578618fa816955ebdc059c049c577e203e650e33cf22bde3f232c29e669"
+},
+{
+"path": "vendor/three/examples/jsm/postprocessing/MaskPass.js",
+"size": 2231,
+"sha256": "328cf7db0da5d9be83ffe39d54b01d5ac1fddf108cc98182ddbb056f5c8b537f"
+},
+{
+"path": "vendor/three/examples/jsm/postprocessing/OutputPass.js",
+"size": 2398,
+"sha256": "13817fc7a87f662d29d2c5e00f44d3a4588c9afac4a372de0cacb0e44e368ffd"
+},
+{
+"path": "vendor/three/examples/jsm/postprocessing/Pass.js",
+"size": 1706,
+"sha256": "b3c6128340eaa37e40a6a2f1b738e894c855239417d50959759b34a2b5e89f92"
+},
+{
+"path": "vendor/three/examples/jsm/postprocessing/RenderPass.js",
+"size": 1915,
+"sha256": "1c90c085312871c4bcdccfcf519499c6276dd503363fcf7cb7f703add45cf4a2"
+},
+{
+"path": "vendor/three/examples/jsm/postprocessing/SMAAPass.js",
+"size": 49467,
+"sha256": "f3508e3e17f40c1358921b5c7eb3ab60460d97b06fdadf6b0d40b52d3842c44a"
+},
+{
+"path": "vendor/three/examples/jsm/postprocessing/ShaderPass.js",
+"size": 1576,
+"sha256": "3b28a1ee27e0eb96c0eab137a1f442ccf127a926904eced2d51e125ec44af781"
+},
+{
+"path": "vendor/three/examples/jsm/postprocessing/UnrealBloomPass.js",
+"size": 12406,
+"sha256": "8f09315c0cec117a0ca2494d3e3586035b3c4323d6dcb037537cc51b04c3cdba"
+},
+{
+"path": "vendor/three/examples/jsm/shaders/CopyShader.js",
+"size": 571,
+"sha256": "4e3346db194db56a596cd074e9bdb39fb5eb52040c333e0d29dc4eb1324d3b1d"
+},
+{
+"path": "vendor/three/examples/jsm/shaders/LuminosityHighPassShader.js",
+"size": 1192,
+"sha256": "3d841cc594a0c1767d1b0185720b32761a0133c5f1b70b56658e28f2fb9b7900"
+},
+{
+"path": "vendor/three/examples/jsm/shaders/OutputShader.js",
+"size": 1393,
+"sha256": "53a52e430c27bc36ceaab8ae90a2b4af7b02672d7ee4b29d6ba3c28e09c92c2a"
+},
+{
+"path": "vendor/three/examples/jsm/shaders/SMAAShader.js",
+"size": 14628,
+"sha256": "3c7e942a25cb09dd431e395e6e91904715a834b2a6e62ec0b9b77c2f8655c369"
+},
+{
+"path": "vendor/three/examples/jsm/utils/BufferGeometryUtils.js",
+"size": 31906,
+"sha256": "9be041e96308775d00e2695cc607645b9a9b64fd7c0e759dd8f7c00a8d92becb"
+},
+{
+"path": "vendor/three/examples/jsm/utils/TextureUtils.js",
+"size": 2367,
+"sha256": "1b84a7fde8745dd614f62b6ca8108b592144278c07891a0cbe8cdf8e15796efa"
+}
+]
+}

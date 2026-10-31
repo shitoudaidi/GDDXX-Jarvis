@@ -42,6 +42,7 @@ function connectVoice() {
     else if (m.type === 'earth') earthCommand(m);
     else if (m.type === 'earth_data') { if (EW) EW.data(m); }
     else if (m.type === 'holo_list') { if (window.holoLibData) holoLibData(m); }
+    else if (m.type === 'em') { if (window.emMsg) emMsg(m); }
     else if (m.type === 'hand') handMsg(m);
     else if (m.type === 'hand_frame') handFrame(m);
     else if (m.type === 'heard') { meterHeard.textContent = '听到：' + (m.text || '…'); }

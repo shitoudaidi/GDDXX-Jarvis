@@ -1,0 +1,3 @@
+earth-night.jpg  NASA Earth Observatory "Black Marble" city lights (public domain), via github.com/vasturiano/three-globe example/img
+earth-day.jpg    NASA "Blue Marble" (public domain), via the same repository
+Neither image carries country borders.

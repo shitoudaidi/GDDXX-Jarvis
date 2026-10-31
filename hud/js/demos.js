@@ -69,3 +69,23 @@ addEventListener('keydown', e => {
   else if (e.code === 'ArrowLeft') { e.preventDefault(); e.stopImmediatePropagation(); OP.seek(Math.max(0, cur - 1)); }
 }, true);
 /* optimus>> */
+
+/* <<earth: 地球此刻 · Earth-now card wall (hud/demos/earthwatch.js) */
+let EW = null, frameOdd = false;
+import('../demos/earthwatch.js?v=20261031a').then(m => {
+  EW = window.EW = m.install({ THREE, send: (o) => liveSend(o),
+    dim: (p) => { if (p > 0.001) { U.uGain.value = Math.min(U.uGain.value, 1 - Math.min(1, p * 1.6)); rainM.opacity *= 1 - p * 0.85; rpM.opacity *= 1 - p * 0.85;
+      if (p > 0.3) orbits.visible = false; if (p > 0.05) labelBox.style.opacity = '0'; } } });
+}).catch(e => console.warn('earth wall:', e));
+function earthCommand(m) {
+  if (!EW) return;
+  const a = (m && m.action) || 'show';
+  if (a === 'show' || a === 'open') { try { dormHold = false; wakeUI(); machineHide(); holoHide(); if (SHIP && SHIP.state.on) SHIP.hide(); if (RD && RD.state.on) RD.hide(); if (OP && OP.state.on) OP.hide(); } catch (_) {} }
+  EW.command(m);
+}
+/* keyboard: Ctrl+Shift+E show/hide the wall; while it is up, 1-6 open a card and Esc goes back */
+addEventListener('keydown', e => {
+  if (!EW || !e.ctrlKey || !e.shiftKey || e.code !== 'KeyE') return;
+  e.preventDefault(); EW.live() ? EW.hide() : earthCommand({ action: 'show' });
+}, true);
+/* earth>> */

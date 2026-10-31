@@ -535,6 +535,21 @@ class Service:
                     self.stats = {"raw": 0.0, "clean": 0.0, "wake": 0.0, "status": ""}
                     last = time.time()
 
+    def earth_msg(self, msg):
+        from . import tools
+        earth = tools.plugin("earth")
+        if not earth:
+            return
+        t = msg.get("type")
+        if t == "earth_fetch":
+            earth.fetch_async(msg.get("cards"))
+        elif t == "earth_track":
+            earth.fetch_track(msg.get("icao24"))
+        elif t == "earth_flight":
+            earth.fetch_flight(str(msg.get("q", ""))[:12])
+        elif t == "earth_state":
+            earth.ON["at"] = time.time() if msg.get("on") else 0
+
     def set_listening(self, on: bool):
         """The HUD's 暂停聆听 button (or the M key): stop or resume hearing anything, wake word included.
         Typed input keeps working while paused."""
@@ -581,6 +596,8 @@ class Service:
                     elif msg.get("type") == "camera":        # the HUD wants the camera (a demo is on screen)
                         from . import gesture
                         gesture.TRACKER.set(bool(msg.get("on")))
+                    elif msg.get("type", "").startswith("earth_"):   # the 地球此刻 wall: fetch feeds, track a flight, opened/closed
+                        threading.Thread(target=self.earth_msg, args=(msg,), daemon=True).start()
                     elif msg.get("type") == "listen":        # 暂停聆听 / 恢复聆听
                         self.set_listening(bool(msg.get("on")))
                     elif msg.get("type") == "interrupt":

@@ -16,6 +16,8 @@ const TOUR = [
   { ask: '收起全息', hold: 2 },
   { ask: '展示星舰发射的全过程', hold: 115 },
   { ask: '收起星舰', hold: 2 },
+  { ask: '看看地球上此刻正在发生什么', hold: 40 },
+  { ask: '收起地球', hold: 2 },
   { skins: 3, hold: 5 },
   { ask: '演示结束了，跟直播间的朋友们说声再见', hold: 2 },
 ];

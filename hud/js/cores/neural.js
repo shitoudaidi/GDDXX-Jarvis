@@ -313,7 +313,7 @@ SKCORES.neural = function () {
     else if (t === 'schedule') fire('plan');
     else if (t === 'weather') fire('weather');
     else if (t === 'trip') fire('nav');
-    else if (t === 'machine' || t === 'starship' || t === 'roadster' || t === 'optimus') fire('holo');
+    else if (t === 'machine' || t === 'starship' || t === 'roadster' || t === 'optimus' || t === 'earth') fire('holo');
     else if (t === 'brain') fire('harness', { n: 8 });
     else if (t === 'hand' || t === 'hand_frame') { if (performance.now() - lastHand > 900) { lastHand = performance.now(); fire('hand', { n: 4 }); } }
     else if (t === 'enroll' || t === 'not_you') fire('ident');

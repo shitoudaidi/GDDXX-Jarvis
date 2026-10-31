@@ -33,7 +33,7 @@ function skEvent(m) {
   if (t === 'schedule') return use('plan');
   if (t === 'weather') return use('weather');
   if (t === 'trip') return use('nav');
-  if (t === 'machine' || t === 'starship' || t === 'roadster' || t === 'optimus') return use('holo');
+  if (t === 'machine' || t === 'starship' || t === 'roadster' || t === 'optimus' || t === 'earth') return use('holo');
   if (t === 'brain') return use('harness');
   if (t === 'hand' || t === 'hand_frame') { const n = performance.now(); if (n - skHandT < 900) return null; skHandT = n; return use('hand'); }
   if (t === 'enroll' || t === 'not_you') return use('ident');

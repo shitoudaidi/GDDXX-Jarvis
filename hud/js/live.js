@@ -12,6 +12,7 @@ function connectVoice() {
   ws.onmessage = ev => {
     let m; try { m = JSON.parse(ev.data); } catch (_) { return; }
     if (SK.core && SK.core.msg) try { SK.core.msg(m); } catch (_) {}   /* skins: the core reacts to what Jarvis is doing */
+    if (EW && EW.live() && ['machine', 'starship', 'roadster', 'optimus'].includes(m.type) && !['hide', 'pause', 'resume'].includes(m.action || 'show')) EW.hide();   /* earth: another hologram takes the stage */
     if (m.type === 'state') {
       const s = m.state === 'listening' ? 'listening' : m.state === 'thinking' ? 'thinking' : m.state === 'speaking' ? 'speaking' : 'idle';
       setState(s);
@@ -38,6 +39,8 @@ function connectVoice() {
     else if (m.type === 'skin') skinCommand(m);
     else if (m.type === 'roadster') roadsterCommand(m);
     else if (m.type === 'optimus') optimusCommand(m);
+    else if (m.type === 'earth') earthCommand(m);
+    else if (m.type === 'earth_data') { if (EW) EW.data(m); }
     else if (m.type === 'hand') handMsg(m);
     else if (m.type === 'hand_frame') handFrame(m);
     else if (m.type === 'heard') { meterHeard.textContent = '听到：' + (m.text || '…'); }

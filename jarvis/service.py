@@ -600,6 +600,15 @@ class Service:
                         threading.Thread(target=self.earth_msg, args=(msg,), daemon=True).start()
                     elif msg.get("type") == "listen":        # 暂停聆听 / 恢复聆听
                         self.set_listening(bool(msg.get("on")))
+                    elif msg.get("type") == "holo_list":     # the 3D 拆解 library asks what is stored
+                        from . import hologram
+                        items = await asyncio.get_running_loop().run_in_executor(None, hologram.catalog)
+                        await ws.send(json.dumps({"type": "holo_list", "items": items}, ensure_ascii=False))
+                    elif msg.get("type") == "holo_show":     # a library card was clicked
+                        from . import hologram
+                        if hologram.UI is None:
+                            hologram.UI = self.broadcast
+                        threading.Thread(target=hologram.show_file, args=(str(msg.get("file", "")),), daemon=True).start()
                     elif msg.get("type") == "interrupt":
                         self.on_event("stop", {})
             finally:

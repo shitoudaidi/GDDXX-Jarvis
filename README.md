@@ -14,7 +14,7 @@
 - **系统状态**：CPU、内存、网络、电量实时显示在 HUD 上。
 - **长期记忆**：记得聊过什么、做过什么，可以让它记住或忘掉某件事。
 - **声纹**：录一次你的声音，之后只回应你。
-- **全息演示**：机器拆解、星舰发射到回收、Roadster 悬停、Optimus 行走，可以用手势旋转和拆装。自带 7 台机器（猛禽发动机、汽车发动机、变速箱、电机、离心泵、燃气轮机、涡扇），自己加的放进 `~/.jarvis/holo/`，见 [jarvis/holo_samples](jarvis/holo_samples/README.md)。
+- **全息演示**：机器拆解、星舰发射到回收、Roadster 悬停、Optimus 行走，可以用手势旋转和拆装。自带 7 台机器（猛禽发动机、汽车发动机、变速箱、电机、离心泵、燃气轮机、涡扇），自己加的放进 `~/.jarvis/holo/`，见 [jarvis/holo_samples](jarvis/holo_samples/README.md)。右上角「3D 拆解」把所有能拆的机器列成一面卡片墙，点一下就投影。NVIDIA SimReady 的公开模型可以用 [tools/simready](tools/simready/README.md) 批量转成全息拆解。
 - **地球此刻**：「看看地球上正在发生什么」，地球仪加六张实时卡片：航班（可查航班飞到哪了）、头顶的卫星、地震、台风、全球新闻热点、下一次火箭发射。公开数据源，不用 key；「家」的位置取自导航里存的家，或 config.json 里的 `earth.home`。
 - **8 套皮肤**：每套都有自己的核心动画，跟着贾维斯的听、想、说变化。
 - **插件**（可在设置里关掉）：米家设备控制、高德天气和路线、DeepSeek Harness 做文档和程序、抖音创作者数据。
@@ -23,8 +23,8 @@
 ## 安装
 
 1. 到 [Releases](https://github.com/shitoudaidi/GDDXX-Jarvis/releases) 下载：
-   - Mac：`Jarvis-2.0.2-arm64.dmg`（Apple 芯片）或 `-x86_64.dmg`（Intel），把 Jarvis 拖进「应用程序」。
-   - Windows：`Jarvis-Setup-2.0.2.exe`，双击安装（不需要管理员权限）。
+   - Mac：`Jarvis-2.0.3-arm64.dmg`（Apple 芯片）或 `-x86_64.dmg`（Intel），把 Jarvis 拖进「应用程序」。
+   - Windows：`Jarvis-Setup-2.0.3.exe`，双击安装（不需要管理员权限）。
    - 安装包没有签名。Mac 第一次打开请在「应用程序」里右键点 Jarvis → 打开 → 打开；Windows 提示“已保护你的电脑”时点「更多信息 → 仍要运行」。
 2. 第一次打开会在浏览器里显示安装进度：准备 Python 组件、下载约 1 GB 语音模型（国内镜像优先），只需一次。
 3. 打开后先弹出 **「接入大脑」**：选服务商，粘贴 API Key，点「测试连接」（会同时测试对话和工具调用），通过后保存。

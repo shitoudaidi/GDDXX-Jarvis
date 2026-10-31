@@ -46,6 +46,7 @@ jobs:
         env: {JARVIS_VOICE_MODELS: "${{ github.workspace }}/models"}
       - run: python tests/test_listen_pause.py
         env: {JARVIS_VOICE_MODELS: "${{ github.workspace }}/models", JARVIS_STAY_ON: "1"}
+      - run: python tests/test_holo_library.py
 
   hud:
     runs-on: ubuntu-latest

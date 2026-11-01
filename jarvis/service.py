@@ -9,7 +9,11 @@ and subtitles. Typed text can be sent in on the same socket ({"type":"text","tex
 import asyncio, json, os, queue, threading, time, wave
 from pathlib import Path
 import numpy as np
-import sounddevice as sd
+try:
+    import sounddevice as sd
+except Exception as _e:              # PortAudio could not start (no sound server yet): retried when audio starts
+    sd = None
+    print(f"sounddevice not ready: {type(_e).__name__}: {_e}", flush=True)
 from scipy.signal import resample_poly
 from . import models
 from .aec import EchoCanceller
@@ -19,6 +23,15 @@ from .brain import answer_pair
 from . import config, paths, sysmon, schedule, brain, memory, tools
 
 SR_IN = models.SR
+
+
+def _sd():
+    """sounddevice, imported now if PortAudio could not start when Jarvis did."""
+    global sd
+    if sd is None:
+        import sounddevice
+        sd = sounddevice
+    return sd
 DEV_SR, HOP = 48000, 480          # one duplex stream: 10 ms blocks, mic and speaker on the same clock
 
 
@@ -472,7 +485,7 @@ class Service:
 
     def audio_loop(self):
         try:
-            i, o = sd.default.device
+            i, o = _sd().default.device
             log(f"input: {sd.query_devices(i)['name']} | output: {sd.query_devices(o)['name']}")
         except Exception as e:
             log(f"device query failed: {e}")
@@ -489,13 +502,14 @@ class Service:
                     warned = True
                 time.sleep(5)
                 try:
-                    sd._terminate(); sd._initialize()        # re-scan devices (a newly plugged-in microphone)
+                    if sd is not None:
+                        sd._terminate(); sd._initialize()    # re-scan devices (a newly plugged-in microphone)
                 except Exception:
                     pass
 
     def audio_run(self):
         last = time.time()
-        with sd.Stream(samplerate=DEV_SR, blocksize=HOP, channels=(1, 1), dtype="float32", callback=self.duplex_cb):
+        with _sd().Stream(samplerate=DEV_SR, blocksize=HOP, channels=(1, 1), dtype="float32", callback=self.duplex_cb):
             if self.mic_msg:
                 log("audio device ready")
                 self.mic_msg = None
